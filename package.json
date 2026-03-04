@@ -1,15 +1,23 @@
 {
-  "name": "intercept",
-  "version": "1.0.0",
-  "description": "MCP server that fetches URLs through Jina Reader for clean markdown",
+  "name": "intercept-mcp",
+  "version": "2.0.0",
+  "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
+  "bin": {
+    "intercept-mcp": "./build/index.js"
+  },
+  "files": [
+    "build"
+  ],
   "scripts": {
     "build": "tsc",
     "start": "node build/index.js",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build"
   },
+  "keywords": ["mcp", "fetch", "jina", "web", "markdown", "claude"],
   "license": "ISC",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
