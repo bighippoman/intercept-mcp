@@ -18,6 +18,10 @@
     "prepublishOnly": "npm run build"
   },
   "keywords": ["mcp", "fetch", "jina", "web", "markdown", "claude"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bighippoman/intercept-mcp.git"
+  },
   "license": "ISC",
   "engines": {
     "node": ">=18"
