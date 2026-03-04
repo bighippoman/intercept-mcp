@@ -27,14 +27,18 @@ const BLOCK_PATTERNS = [
 export function scoreContent(content: string): number {
   if (content.length < 200) return 0;
 
+  // Only check structural patterns in the first 500 chars to avoid false positives
+  // on articles that discuss auth, CAPTCHAs, or HTTP errors
+  const head = content.slice(0, 500);
+
   for (const pattern of CAPTCHA_PATTERNS) {
-    if (pattern.test(content)) return 0;
+    if (pattern.test(head)) return 0;
   }
   for (const pattern of LOGIN_WALL_PATTERNS) {
-    if (pattern.test(content)) return 0;
+    if (pattern.test(head)) return 0;
   }
   for (const pattern of BLOCK_PATTERNS) {
-    if (pattern.test(content)) return 0;
+    if (pattern.test(head)) return 0;
   }
 
   let score = 1.0;

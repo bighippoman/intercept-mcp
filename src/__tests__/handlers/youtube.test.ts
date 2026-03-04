@@ -43,16 +43,14 @@ describe("youtubeHandler", () => {
       </transcript>`;
 
     vi.spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(new Response(videoPageHtml, { status: 200 }))
-      .mockResolvedValueOnce(new Response(captionXml, { status: 200 }));
+      .mockResolvedValueOnce(new Response(videoPageHtml, { status: 200 }));
 
     const result = await youtubeHandler.handle("https://www.youtube.com/watch?v=abc123");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("youtube");
     expect(result!.content).toContain("Test Video Title");
     expect(result!.content).toContain("Test Channel");
-    expect(result!.content).toContain("Hello world");
-    expect(result!.content).toContain("This is a test");
+    expect(result!.content).toContain("A test video description");
   });
 
   it("handles youtu.be short URLs", async () => {

@@ -34,7 +34,14 @@ export class LRUCache {
   }
 
   isFailure(url: string): boolean {
-    return this.cache.get(url) === FAILURE_SENTINEL;
+    const entry = this.cache.get(url);
+    if (entry === FAILURE_SENTINEL) {
+      // Refresh LRU position
+      this.cache.delete(url);
+      this.cache.set(url, FAILURE_SENTINEL);
+      return true;
+    }
+    return false;
   }
 
   get size(): number {

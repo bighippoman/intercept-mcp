@@ -2,7 +2,7 @@ import type { Fetcher, FetchResult, PipelineResult, PipelineOptions, AttemptReco
 
 const DEFAULT_QUALITY_THRESHOLD = 0.3;
 const PARALLEL_TIER = 2;
-const TIER_PREFERENCE = ["archive.ph"];
+const TIER_PREFERENCE: string[] = [];
 
 export async function runPipeline(
   url: string,
@@ -11,7 +11,7 @@ export async function runPipeline(
 ): Promise<PipelineResult> {
   const { maxTier = 5, qualityThreshold = DEFAULT_QUALITY_THRESHOLD } = options;
   const attempts: AttemptRecord[] = [];
-  let lastResult: FetchResult | null = null;
+  let bestFallback: FetchResult | null = null;
 
   let i = 0;
   while (i < fetchers.length) {
@@ -54,7 +54,7 @@ export async function runPipeline(
 
         if (result.quality < qualityThreshold) {
           attempts.push({ name: f.name, status: "failed", quality: result.quality, timing: result.timing, reason: `quality ${result.quality} < ${qualityThreshold}` });
-          lastResult = lastResult ?? result;
+          if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
           continue;
         }
 
@@ -72,7 +72,7 @@ export async function runPipeline(
           if (f === bestFetcher) {
             attempts.push({ name: f.name, status: "success", quality: bestResult.quality, timing: bestResult.timing });
           } else if (settled.status === "fulfilled" && settled.value && settled.value.quality >= qualityThreshold) {
-            attempts.push({ name: f.name, status: "failed", quality: settled.value.quality, timing: settled.value.timing, reason: "not best result" });
+            attempts.push({ name: f.name, status: "skipped", quality: settled.value.quality, timing: settled.value.timing, reason: "not best result" });
           }
         }
         return { result: bestResult, attempts };
@@ -91,13 +91,12 @@ export async function runPipeline(
         continue;
       }
 
-      lastResult = result;
-
       if (result.quality >= qualityThreshold) {
         attempts.push({ name: fetcher.name, status: "success", quality: result.quality, timing: result.timing });
         return { result, attempts };
       }
 
+      if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
       attempts.push({ name: fetcher.name, status: "failed", quality: result.quality, timing: result.timing, reason: `quality ${result.quality} < ${qualityThreshold}` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
@@ -107,8 +106,8 @@ export async function runPipeline(
     i++;
   }
 
-  if (lastResult) {
-    return { result: lastResult, attempts };
+  if (bestFallback) {
+    return { result: bestFallback, attempts };
   }
 
   return {

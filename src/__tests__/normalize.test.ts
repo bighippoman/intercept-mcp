@@ -23,7 +23,7 @@ describe("normalizeUrl", () => {
   });
 
   it("strips referral and analytics params", () => {
-    expect(normalizeUrl("https://example.com/page?ref=twitter&_ga=123&sid=abc"))
+    expect(normalizeUrl("https://example.com/page?referer=twitter&_ga=123&sid=abc"))
       .toBe("https://example.com/page");
   });
 

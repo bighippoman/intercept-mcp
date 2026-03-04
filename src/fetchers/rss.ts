@@ -38,7 +38,7 @@ export const rssFetcher: Fetcher = {
           if (!response.ok) continue;
           const xml = await response.text();
           const items = extractItemsFromFeed(xml);
-          const match = items.find((item) => item.link === url || url.includes(item.link) || item.link.includes(parsedUrl.pathname));
+          const match = items.find((item) => item.link === url || url.includes(item.link) || (parsedUrl.pathname.length > 1 && item.link.includes(parsedUrl.pathname)));
           if (match && match.content) {
             const content = match.title ? `# ${match.title}\n\n${match.content}` : match.content;
             return { content, source: "rss", quality: scoreContent(content), timing: Date.now() - start };

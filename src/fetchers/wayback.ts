@@ -21,7 +21,9 @@ export const waybackFetcher: Fetcher = {
       const data = (await apiResponse.json()) as WaybackResponse;
       const snapshot = data.archived_snapshots?.closest;
       if (!snapshot?.available || !snapshot.url) return null;
-      const pageResponse = await fetchWithTimeout(snapshot.url);
+      // Use id_ modifier to get raw original HTML without Wayback toolbar
+      const rawUrl = snapshot.url.replace(/\/web\/(\d+)\//, "/web/$1id_/");
+      const pageResponse = await fetchWithTimeout(rawUrl);
       if (!pageResponse.ok) return null;
       const html = await pageResponse.text();
       const content = htmlToText(html);

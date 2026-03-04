@@ -16,44 +16,16 @@ interface VideoDetails {
   viewCount: string;
 }
 
-interface CaptionTrack {
-  baseUrl: string;
-  languageCode: string;
-}
-
-function parsePlayerResponse(html: string): { details: VideoDetails | null; captionTracks: CaptionTrack[] } {
+function parsePlayerResponse(html: string): VideoDetails | null {
   const match = html.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{[\s\S]*?\});/);
-  if (!match) return { details: null, captionTracks: [] };
+  if (!match) return null;
 
   try {
     const data = JSON.parse(match[1]);
-    const details = data.videoDetails as VideoDetails | undefined;
-    const tracks = data.captions?.playerCaptionsTracklistRenderer?.captionTracks as CaptionTrack[] | undefined;
-    return { details: details ?? null, captionTracks: tracks ?? [] };
+    return (data.videoDetails as VideoDetails | undefined) ?? null;
   } catch {
-    return { details: null, captionTracks: [] };
+    return null;
   }
-}
-
-function parseTranscriptXml(xml: string): string {
-  const lines: string[] = [];
-  const regex = /<text\s+start="([^"]*)"[^>]*>([\s\S]*?)<\/text>/g;
-  let match;
-  while ((match = regex.exec(xml)) !== null) {
-    const seconds = parseFloat(match[1]);
-    const minutes = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const timestamp = `${minutes}:${String(secs).padStart(2, "0")}`;
-    const text = match[2]
-      .replace(/&amp;/g, "&")
-      .replace(/&lt;/g, "<")
-      .replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"')
-      .replace(/&#39;/g, "'")
-      .trim();
-    if (text) lines.push(`[${timestamp}] ${text}`);
-  }
-  return lines.join("\n");
 }
 
 function formatDuration(seconds: number): string {
@@ -83,7 +55,7 @@ export const youtubeHandler: Handler = {
       });
       if (!response.ok) return null;
       const html = await response.text();
-      const { details, captionTracks } = parsePlayerResponse(html);
+      const details = parsePlayerResponse(html);
       if (!details) return null;
 
       const parts: string[] = [];
@@ -97,23 +69,6 @@ export const youtubeHandler: Handler = {
         parts.push("## Description");
         parts.push(details.shortDescription);
         parts.push("");
-      }
-
-      const enTrack = captionTracks.find((t) => t.languageCode === "en") ?? captionTracks[0];
-      if (enTrack) {
-        try {
-          const captionResponse = await fetchWithTimeout(enTrack.baseUrl);
-          if (captionResponse.ok) {
-            const xml = await captionResponse.text();
-            const transcript = parseTranscriptXml(xml);
-            if (transcript) {
-              parts.push("## Transcript");
-              parts.push(transcript);
-            }
-          }
-        } catch {
-          // No transcript available, continue with metadata only
-        }
       }
 
       return {

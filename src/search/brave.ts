@@ -1,16 +1,5 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
-
-export interface SearchResult {
-  title: string;
-  url: string;
-  snippet: string;
-}
-
-export interface SearchResponse {
-  results: SearchResult[];
-  source: string;
-  timing: number;
-}
+import type { SearchResponse } from "../types.js";
 
 interface BraveWebResult {
   title: string;

@@ -7,8 +7,8 @@ import { runPipeline, formatResult } from "./pipeline.js";
 import { routeUrl } from "./router.js";
 import { LRUCache } from "./cache.js";
 import { jinaFetcher } from "./fetchers/jina.js";
-import { archivePhFetcher } from "./fetchers/archive-ph.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
+import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { rssFetcher } from "./fetchers/rss.js";
 import { crossrefFetcher } from "./fetchers/crossref.js";
@@ -22,8 +22,7 @@ import { arxivHandler } from "./handlers/arxiv.js";
 import { pdfHandler } from "./handlers/pdf.js";
 import { braveSearch } from "./search/brave.js";
 import { searxngSearch } from "./search/searxng.js";
-import type { Fetcher, Handler } from "./types.js";
-import type { SearchResponse } from "./search/brave.js";
+import type { Fetcher, Handler, SearchResponse } from "./types.js";
 
 const HANDLERS: Handler[] = [
   twitterHandler,
@@ -34,8 +33,8 @@ const HANDLERS: Handler[] = [
 
 const FETCHERS: Fetcher[] = [
   jinaFetcher,
-  archivePhFetcher,
   waybackFetcher,
+  codetabsFetcher,
   rawFetcher,
   rssFetcher,
   crossrefFetcher,
@@ -57,7 +56,7 @@ server.registerTool(
   {
     title: "Fetch URL",
     description:
-      "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube transcripts, arXiv papers, and PDFs directly. Falls back to a multi-tier chain: Jina Reader, archive.ph + Wayback (parallel), raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Results are cached for the session.",
+      "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos, arXiv papers, and PDFs directly. Falls back to a multi-tier chain: Jina Reader, Wayback Machine, raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Results are cached for the session.",
     inputSchema: {
       url: z.string().url().describe("The URL to fetch"),
       maxTier: z

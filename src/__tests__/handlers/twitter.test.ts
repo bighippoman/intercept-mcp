@@ -59,17 +59,30 @@ describe("twitterHandler", () => {
     expect(result).not.toBeNull();
   });
 
-  it("returns null on API error", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response("Not Found", { status: 404 })
-    );
+  it("returns null when all backends fail", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response("Not Found", { status: 404 })) // fxtwitter
+      .mockResolvedValueOnce(new Response("<html>not found</html>", { status: 200, headers: { "content-type": "text/html" } })) // vxtwitter
+      .mockResolvedValueOnce(new Response("{}", { status: 200, headers: { "content-type": "application/json" } })); // syndication
     const result = await twitterHandler.handle("https://twitter.com/user/status/999");
     expect(result).toBeNull();
   });
 
-  it("returns null on network error", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network error"));
+  it("falls back to next backend on error", async () => {
+    const syndicationResponse = {
+      __typename: "Tweet",
+      text: "Fallback tweet text",
+      user: { name: "Fallback User", screen_name: "fallback" },
+      created_at: "2024-01-01T00:00:00.000Z",
+      favorite_count: 10,
+      conversation_count: 2,
+    };
+    vi.spyOn(globalThis, "fetch")
+      .mockRejectedValueOnce(new Error("Network error")) // fxtwitter
+      .mockRejectedValueOnce(new Error("Network error")) // vxtwitter
+      .mockResolvedValueOnce(new Response(JSON.stringify(syndicationResponse), { status: 200, headers: { "content-type": "application/json" } })); // syndication
     const result = await twitterHandler.handle("https://twitter.com/user/status/999");
-    expect(result).toBeNull();
+    expect(result).not.toBeNull();
+    expect(result!.content).toContain("Fallback tweet text");
   });
 });

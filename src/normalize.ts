@@ -12,7 +12,7 @@ const STRIP_PARAMS = new Set([
   "embedded-checkout", "unlocked", "gift", "giftcopy", "paywall",
   "access", "preview", "allow_access", "free_access", "member_access",
   // Publisher referral
-  "ref", "referer", "referrer", "source", "origin", "via", "from",
+  "referer", "referrer", "origin", "via",
   "partner", "affiliate",
   // Analytics / session
   "_ga", "_gl", "_hsenc", "_hsmi", "icid", "ncid", "cid", "sid",
@@ -22,7 +22,7 @@ const STRIP_PARAMS = new Set([
   // Social sharing
   "share", "shared", "sharetype", "shared_from", "smid", "smtyp", "sr_share",
   // CMS / internal
-  "mod", "action", "view", "format", "output", "render", "template", "layout",
+  "mod", "render", "template", "layout",
 ]);
 
 export function normalizeUrl(input: string): string {
@@ -49,7 +49,7 @@ export function normalizeUrl(input: string): string {
     url.searchParams.delete("amp");
   }
 
-  url.pathname = url.pathname.replace(/\/amp\//, "/");
+  url.pathname = url.pathname.replace(/^\/amp\//, "/");
 
   if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
     url.pathname = url.pathname.slice(0, -1);
