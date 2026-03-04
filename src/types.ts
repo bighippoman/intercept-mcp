@@ -28,3 +28,15 @@ export interface PipelineOptions {
   maxTier?: number;
   qualityThreshold?: number;
 }
+
+export interface HandlerResult {
+  content: string;
+  source: string;
+  timing: number;
+}
+
+export interface Handler {
+  name: string;
+  patterns: RegExp[];
+  handle: (url: string) => Promise<HandlerResult | null>;
+}
