@@ -1,0 +1,95 @@
+import { describe, it, expect, vi } from "vitest";
+import { runPipeline, formatResult } from "../pipeline.js";
+import type { Fetcher, FetchResult } from "../types.js";
+
+function makeFetcher(name: string, tier: number, result: FetchResult | null): Fetcher {
+  return { name, tier, fetch: vi.fn().mockResolvedValue(result) };
+}
+
+describe("runPipeline", () => {
+  it("returns the first successful result above quality threshold", async () => {
+    const fetchers = [
+      makeFetcher("first", 1, { content: "Good content", source: "first", quality: 0.8, timing: 100 }),
+      makeFetcher("second", 2, { content: "Also good", source: "second", quality: 0.9, timing: 200 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.result.source).toBe("first");
+    expect(fetchers[1].fetch).not.toHaveBeenCalled();
+  });
+
+  it("skips failed fetchers and continues", async () => {
+    const fetchers = [
+      makeFetcher("failing", 1, null),
+      makeFetcher("working", 2, { content: "Good content", source: "working", quality: 0.8, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.result.source).toBe("working");
+  });
+
+  it("skips low-quality results and continues", async () => {
+    const fetchers = [
+      makeFetcher("garbage", 1, { content: "bad", source: "garbage", quality: 0.1, timing: 50 }),
+      makeFetcher("good", 2, { content: "Good content", source: "good", quality: 0.8, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.result.source).toBe("good");
+  });
+
+  it("records all attempts", async () => {
+    const fetchers = [
+      makeFetcher("fail1", 1, null),
+      makeFetcher("fail2", 2, { content: "bad", source: "fail2", quality: 0.1, timing: 50 }),
+      makeFetcher("success", 3, { content: "Good", source: "success", quality: 0.8, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.attempts).toHaveLength(3);
+    expect(result.attempts[0].status).toBe("failed");
+    expect(result.attempts[1].status).toBe("failed");
+    expect(result.attempts[2].status).toBe("success");
+  });
+
+  it("respects maxTier option", async () => {
+    const fetchers = [
+      makeFetcher("tier1", 1, null),
+      makeFetcher("tier2", 2, { content: "Good", source: "tier2", quality: 0.8, timing: 100 }),
+      makeFetcher("tier3", 3, { content: "Also good", source: "tier3", quality: 0.9, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers, { maxTier: 1 });
+    expect(result.attempts.some(a => a.name === "tier2")).toBe(false);
+  });
+
+  it("respects custom quality threshold", async () => {
+    const fetchers = [
+      makeFetcher("low", 1, { content: "okay", source: "low", quality: 0.5, timing: 50 }),
+      makeFetcher("high", 2, { content: "great", source: "high", quality: 0.9, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers, { qualityThreshold: 0.7 });
+    expect(result.result.source).toBe("high");
+  });
+});
+
+describe("formatResult", () => {
+  it("formats successful result with metadata", () => {
+    const output = formatResult({
+      result: { content: "Article content", source: "jina", quality: 0.85, timing: 1200 },
+      attempts: [{ name: "jina", status: "success", quality: 0.85, timing: 1200 }],
+    });
+    expect(output).toContain("Article content");
+    expect(output).toContain("source: jina");
+    expect(output).toContain("quality: 0.85");
+  });
+
+  it("formats multi-attempt result with failure reasons", () => {
+    const output = formatResult({
+      result: { content: "Content", source: "raw", quality: 0.6, timing: 300 },
+      attempts: [
+        { name: "jina", status: "failed", reason: "HTTP 403" },
+        { name: "archive.ph", status: "failed", reason: "not archived" },
+        { name: "raw", status: "success", quality: 0.6, timing: 300 },
+      ],
+    });
+    expect(output).toContain("jina: failed (HTTP 403)");
+    expect(output).toContain("archive.ph: failed (not archived)");
+    expect(output).toContain("raw: success");
+  });
+});
