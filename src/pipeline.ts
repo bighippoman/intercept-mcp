@@ -1,6 +1,8 @@
 import type { Fetcher, FetchResult, PipelineResult, PipelineOptions, AttemptRecord } from "./types.js";
 
 const DEFAULT_QUALITY_THRESHOLD = 0.3;
+const PARALLEL_TIER = 2;
+const TIER_PREFERENCE = ["archive.ph"];
 
 export async function runPipeline(
   url: string,
@@ -11,16 +13,81 @@ export async function runPipeline(
   const attempts: AttemptRecord[] = [];
   let lastResult: FetchResult | null = null;
 
-  for (const fetcher of fetchers) {
+  let i = 0;
+  while (i < fetchers.length) {
+    const fetcher = fetchers[i];
+
     if (fetcher.tier > maxTier) {
+      i++;
       continue;
     }
 
+    // Collect all fetchers at the parallel tier and run them concurrently
+    if (fetcher.tier === PARALLEL_TIER) {
+      const tierFetchers: Fetcher[] = [];
+      while (i < fetchers.length && fetchers[i].tier === PARALLEL_TIER) {
+        if (fetchers[i].tier <= maxTier) tierFetchers.push(fetchers[i]);
+        i++;
+      }
+
+      const results = await Promise.allSettled(
+        tierFetchers.map((f) => f.fetch(url))
+      );
+
+      let bestResult: FetchResult | null = null;
+      let bestFetcher: Fetcher | null = null;
+
+      for (let j = 0; j < results.length; j++) {
+        const settled = results[j];
+        const f = tierFetchers[j];
+
+        if (settled.status === "rejected") {
+          attempts.push({ name: f.name, status: "failed", reason: settled.reason?.message ?? "unknown error" });
+          continue;
+        }
+
+        const result = settled.value;
+        if (!result) {
+          attempts.push({ name: f.name, status: "failed", reason: "returned null" });
+          continue;
+        }
+
+        if (result.quality < qualityThreshold) {
+          attempts.push({ name: f.name, status: "failed", quality: result.quality, timing: result.timing, reason: `quality ${result.quality} < ${qualityThreshold}` });
+          lastResult = lastResult ?? result;
+          continue;
+        }
+
+        if (!bestResult || result.quality > bestResult.quality ||
+            (result.quality === bestResult.quality && TIER_PREFERENCE.includes(f.name))) {
+          bestResult = result;
+          bestFetcher = f;
+        }
+      }
+
+      if (bestResult && bestFetcher) {
+        for (let j = 0; j < results.length; j++) {
+          const f = tierFetchers[j];
+          const settled = results[j];
+          if (f === bestFetcher) {
+            attempts.push({ name: f.name, status: "success", quality: bestResult.quality, timing: bestResult.timing });
+          } else if (settled.status === "fulfilled" && settled.value && settled.value.quality >= qualityThreshold) {
+            attempts.push({ name: f.name, status: "failed", quality: settled.value.quality, timing: settled.value.timing, reason: "not best result" });
+          }
+        }
+        return { result: bestResult, attempts };
+      }
+
+      continue;
+    }
+
+    // Sequential execution for all other tiers
     try {
       const result = await fetcher.fetch(url);
 
       if (!result) {
         attempts.push({ name: fetcher.name, status: "failed", reason: "returned null" });
+        i++;
         continue;
       }
 
@@ -36,6 +103,8 @@ export async function runPipeline(
       const message = error instanceof Error ? error.message : "unknown error";
       attempts.push({ name: fetcher.name, status: "failed", reason: message });
     }
+
+    i++;
   }
 
   if (lastResult) {

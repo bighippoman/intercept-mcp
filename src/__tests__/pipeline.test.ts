@@ -66,6 +66,46 @@ describe("runPipeline", () => {
     const result = await runPipeline("https://example.com", fetchers, { qualityThreshold: 0.7 });
     expect(result.result.source).toBe("high");
   });
+
+  it("runs tier 2 fetchers in parallel", async () => {
+    const slowArchive = {
+      name: "archive.ph", tier: 2,
+      fetch: vi.fn().mockImplementation(() => new Promise(resolve =>
+        setTimeout(() => resolve({ content: "archive content", source: "archive.ph", quality: 0.7, timing: 500 }), 50)
+      )),
+    } satisfies Fetcher;
+    const slowWayback = {
+      name: "wayback", tier: 2,
+      fetch: vi.fn().mockImplementation(() => new Promise(resolve =>
+        setTimeout(() => resolve({ content: "wayback content", source: "wayback", quality: 0.6, timing: 500 }), 50)
+      )),
+    } satisfies Fetcher;
+    const fetchers: Fetcher[] = [
+      makeFetcher("jina", 1, null),
+      slowArchive,
+      slowWayback,
+      makeFetcher("raw", 3, { content: "raw", source: "raw", quality: 0.5, timing: 100 }),
+    ];
+
+    const startTime = Date.now();
+    const result = await runPipeline("https://example.com", fetchers);
+    const elapsed = Date.now() - startTime;
+
+    expect(slowArchive.fetch).toHaveBeenCalled();
+    expect(slowWayback.fetch).toHaveBeenCalled();
+    expect(result.result.source).toBe("archive.ph");
+    expect(elapsed).toBeLessThan(200);
+  });
+
+  it("prefers archive.ph as tiebreaker when both tier 2 have equal quality", async () => {
+    const fetchers: Fetcher[] = [
+      makeFetcher("jina", 1, null),
+      makeFetcher("archive.ph", 2, { content: "archive", source: "archive.ph", quality: 0.7, timing: 100 }),
+      makeFetcher("wayback", 2, { content: "wayback", source: "wayback", quality: 0.7, timing: 100 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.result.source).toBe("archive.ph");
+  });
 });
 
 describe("formatResult", () => {
