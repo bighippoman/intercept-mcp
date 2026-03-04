@@ -24,8 +24,9 @@ export const pdfHandler: Handler = {
       let text = "";
 
       try {
-        const pdfParse = (await import("pdf-parse")).default;
-        const result = await pdfParse(Buffer.from(buffer));
+        const { PDFParse } = await import("pdf-parse");
+        const parser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await parser.getText();
         text = result.text?.trim() ?? "";
       } catch {
         // pdf-parse failed -- scanned or corrupt PDF
