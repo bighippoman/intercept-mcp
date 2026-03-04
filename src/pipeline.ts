@@ -122,7 +122,7 @@ export function formatResult(pipelineResult: PipelineResult): string {
 
   const attemptsLog = attempts
     .map((a) => {
-      if (a.status === "success") return `  - ${a.name}: success (${a.quality}, ${formatTiming(a.timing!)})`;
+      if (a.status === "success") return `  - ${a.name}: success (${a.quality}, ${formatTiming(a.timing ?? 0)})`;
       if (a.status === "skipped") return `  - ${a.name}: skipped (${a.reason})`;
       return `  - ${a.name}: failed (${a.reason})`;
     })
