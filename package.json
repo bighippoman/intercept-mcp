@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
@@ -8,7 +8,8 @@
     "intercept-mcp": "./build/index.js"
   },
   "files": [
-    "build"
+    "build",
+    "README.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
