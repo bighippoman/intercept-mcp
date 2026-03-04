@@ -1,6 +1,6 @@
 # intercept-mcp
 
-MCP server that fetches web content as clean markdown using a multi-tier fallback chain. When one source fails or returns garbage, it automatically tries the next. Always returns something useful.
+MCP server that fetches web content as clean markdown, extracts transcripts, reads PDFs, and searches the web. Multi-tier fallback chain with site-specific handlers. Always returns something useful.
 
 ## Install
 
@@ -10,31 +10,63 @@ claude mcp add intercept -- npx -y intercept-mcp
 
 ## How it works
 
-Sequential pipeline of 10 fetchers across 5 tiers:
+URLs are processed in three stages:
+
+### 1. Site-specific handlers
+
+Known URL patterns are routed to dedicated handlers before the fallback pipeline:
+
+| Pattern | Handler | What you get |
+|---------|---------|-------------|
+| `twitter.com/*/status/*`, `x.com/*/status/*` | Twitter/X | Tweet text, author, media, engagement stats |
+| `youtube.com/watch?v=*`, `youtu.be/*` | YouTube | Title, description, full transcript with timestamps |
+| `arxiv.org/abs/*`, `arxiv.org/pdf/*` | arXiv | Paper metadata, authors, abstract, categories |
+| `*.pdf` | PDF | Extracted text (text-layer PDFs only) |
+
+### 2. Fallback pipeline
+
+If no handler matches (or the handler returns nothing), the URL enters the multi-tier pipeline:
 
 | Tier | Fetcher | Strategy |
 |------|---------|----------|
 | 1 | Jina Reader | Clean text extraction service |
-| 2 | archive.ph | Cached/archived version |
-| 2 | Wayback Machine | Internet Archive snapshot |
+| 2 | archive.ph + Wayback | Archived versions (run in parallel) |
 | 3 | Raw fetch | Direct GET with browser headers |
-| 4 | RSS | Feed lookup for matching article |
-| 4 | CrossRef | DOI/academic paper metadata |
-| 4 | Semantic Scholar | Paper abstract + TL;DR |
-| 4 | HackerNews | HN discussion via Algolia |
-| 4 | Reddit | Reddit discussion threads |
+| 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
-Each result is quality-scored (0-1). The pipeline stops at the first result scoring above 0.3. If everything fails, OG meta always returns something.
+Tier 2 fetchers run in parallel. When both succeed, the higher quality result wins; ties go to archive.ph (more recent snapshots). All other tiers run sequentially.
 
-## Tool API
+### 3. Caching
 
-**`fetch`** — Fetch a URL and return its content as clean markdown.
+Results are cached in-memory for the session (max 100 entries, LRU eviction). Failed URLs are also cached to prevent re-attempting known-dead URLs.
+
+## Tools
+
+### `fetch`
+
+Fetch a URL and return its content as clean markdown.
 
 - `url` (string, required) — URL to fetch
 - `maxTier` (number, optional, 1-5) — Stop at this tier for speed-sensitive cases
 
-Output includes the content plus a metadata footer showing which source succeeded and what was attempted.
+### `search`
+
+Search the web and return results.
+
+- `query` (string, required) — Search query
+- `count` (number, optional, 1-20, default 5) — Number of results
+
+Uses Brave Search API if `BRAVE_API_KEY` is set, otherwise falls back to SearXNG.
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BRAVE_API_KEY` | No | Brave Search API key ([free tier: 2,000 queries/month](https://brave.com/search/api/)) |
+| `SEARXNG_URL` | No | Self-hosted SearXNG instance URL |
+
+Search works without any keys using a public SearXNG instance, but public instances can be unreliable. For serious use, set `BRAVE_API_KEY` or `SEARXNG_URL`.
 
 ## URL normalization
 
@@ -58,4 +90,4 @@ Each fetcher result is scored for quality. Automatic fail on:
 ## Requirements
 
 - Node.js >= 18
-- No API keys needed — all services are free/freemium
+- No API keys required for basic use
