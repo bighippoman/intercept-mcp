@@ -7,14 +7,34 @@ describe("normalizeUrl", () => {
       .toBe("https://example.com/page?id=123");
   });
 
-  it("strips fbclid and gclid", () => {
-    expect(normalizeUrl("https://example.com/page?fbclid=abc123&gclid=def456"))
+  it("strips platform click IDs", () => {
+    expect(normalizeUrl("https://example.com/page?fbclid=abc&gclid=def&msclkid=ghi&twclid=jkl"))
       .toBe("https://example.com/page");
   });
 
-  it("strips mc_cid and mc_eid", () => {
-    expect(normalizeUrl("https://example.com/page?mc_cid=abc&mc_eid=def"))
+  it("strips email marketing params", () => {
+    expect(normalizeUrl("https://example.com/page?mc_cid=abc&mc_eid=def&mkt_tok=ghi"))
       .toBe("https://example.com/page");
+  });
+
+  it("strips paywall triggers", () => {
+    expect(normalizeUrl("https://example.com/article?embedded-checkout=1&paywall=open&gift=true"))
+      .toBe("https://example.com/article");
+  });
+
+  it("strips referral and analytics params", () => {
+    expect(normalizeUrl("https://example.com/page?ref=twitter&_ga=123&sid=abc"))
+      .toBe("https://example.com/page");
+  });
+
+  it("strips A/B testing and social sharing params", () => {
+    expect(normalizeUrl("https://example.com/page?variant=b&smid=xyz&sr_share=1"))
+      .toBe("https://example.com/page");
+  });
+
+  it("preserves pagination params", () => {
+    expect(normalizeUrl("https://example.com/search?q=test&page=2&per_page=20"))
+      .toBe("https://example.com/search?q=test&page=2&per_page=20");
   });
 
   it("strips hash fragments", () => {
