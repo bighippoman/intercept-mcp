@@ -1,11 +1,11 @@
 {
   "name": "intercept-mcp",
-  "version": "2.0.4",
+  "version": "2.0.6",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
   "bin": {
-    "intercept-mcp": "./build/index.js"
+    "intercept-mcp": "build/index.js"
   },
   "files": [
     "build",
@@ -28,7 +28,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/bighippoman/intercept-mcp.git"
+    "url": "git+https://github.com/bighippoman/intercept-mcp.git"
   },
   "license": "ISC",
   "engines": {
