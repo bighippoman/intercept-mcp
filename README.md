@@ -1,18 +1,66 @@
 # intercept-mcp
 
-Give Claude the ability to read the web. One command, no API keys required.
+Give your AI the ability to read the web. One command, no API keys required.
 
-Without it, Claude hits a URL and gets a 403, a paywall, or a wall of raw HTML. With intercept, Claude almost always gets the content — clean markdown, ready to use.
+Without it, your AI hits a URL and gets a 403, a paywall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
 Handles tweets, YouTube videos, arXiv papers, PDFs, and regular web pages. If the first strategy fails, it tries up to 8 more before giving up.
 
+Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
+
 ## Install
 
+### Claude Code
+
 ```bash
-claude mcp add intercept -- npx -y intercept-mcp
+claude mcp add intercept -s user -- npx -y intercept-mcp
 ```
 
-Works with any MCP client. No API keys needed for the `fetch` tool.
+### Codex
+
+```bash
+codex mcp add intercept -- npx -y intercept-mcp
+```
+
+### Cursor
+
+Settings → MCP → Add Server:
+
+```json
+{
+  "mcpServers": {
+    "intercept": {
+      "command": "npx",
+      "args": ["-y", "intercept-mcp"]
+    }
+  }
+}
+```
+
+### Windsurf
+
+Settings → MCP → Add Server → same JSON config as above.
+
+### Claude Desktop
+
+Add to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "intercept": {
+      "command": "npx",
+      "args": ["-y", "intercept-mcp"]
+    }
+  }
+}
+```
+
+### Other MCP clients
+
+Any client that supports stdio MCP servers can run `npx -y intercept-mcp`.
+
+No API keys needed for the `fetch` tool.
 
 ## How it works
 

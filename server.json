@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.bighippoman/intercept-mcp",
+  "title": "Intercept",
+  "description": "Give your AI the ability to read the web. Fetches URLs as clean markdown with multi-tier fallback.",
+  "repository": {
+    "url": "https://github.com/bighippoman/intercept-mcp",
+    "source": "github"
+  },
+  "version": "3.0.8",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "intercept-mcp",
+      "version": "3.0.8",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeHint": "npx",
+      "environmentVariables": [
+        {
+          "name": "BRAVE_API_KEY",
+          "description": "Brave Search API key for the search tool (free tier: 2,000 queries/month). Not needed for the fetch tool.",
+          "isRequired": false,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

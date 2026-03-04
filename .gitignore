@@ -1,2 +1,6 @@
 node_modules/
 build/
+*.tgz
+.mcpregistry_*
+live-test.mjs
+handler-test.mjs

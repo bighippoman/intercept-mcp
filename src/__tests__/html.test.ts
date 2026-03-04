@@ -30,6 +30,30 @@ describe("htmlToText", () => {
   it("handles empty input", () => {
     expect(htmlToText("")).toBe("");
   });
+
+  it("strips tags with attributes completely", () => {
+    expect(htmlToText('<div id="__next" class="app"><p>Content</p></div>')).toBe("Content");
+  });
+
+  it("strips nav, header, footer, aside elements", () => {
+    expect(htmlToText('<nav><a href="/">Home</a></nav><p>Article text</p><footer>Copyright</footer>'))
+      .toBe("Article text");
+  });
+
+  it("extracts article content when available", () => {
+    const html = '<nav>Menu</nav><article><p>Article content here</p></article><footer>Footer</footer>';
+    expect(htmlToText(html)).toBe("Article content here");
+  });
+
+  it("extracts main content when available", () => {
+    const html = '<header>Header</header><main><p>Main content</p></main><aside>Sidebar</aside>';
+    expect(htmlToText(html)).toBe("Main content");
+  });
+
+  it("strips svg elements", () => {
+    expect(htmlToText('<p>Text</p><svg viewBox="0 0 24 24"><path d="M0 0"/></svg><p>More</p>'))
+      .toBe("Text\n\nMore");
+  });
 });
 
 describe("extractMeta", () => {
