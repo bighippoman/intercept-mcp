@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { htmlToText } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -8,7 +9,7 @@ export const archivePhFetcher: Fetcher = {
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {
-      const response = await fetch(`https://archive.ph/newest/${url}`, {
+      const response = await fetchWithTimeout(`https://archive.ph/newest/${url}`, {
         headers: { "User-Agent": "Mozilla/5.0 (compatible)" },
         redirect: "follow",
       });

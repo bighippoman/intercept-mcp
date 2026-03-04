@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { htmlToText } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -33,7 +34,7 @@ export const rssFetcher: Fetcher = {
       for (const path of FEED_PATHS) {
         const feedUrl = path.startsWith("?") ? `${baseUrl}/${path}` : `${baseUrl}${path}`;
         try {
-          const response = await fetch(feedUrl, { headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" } });
+          const response = await fetchWithTimeout(feedUrl, { headers: { Accept: "application/rss+xml, application/atom+xml, application/xml, text/xml" } });
           if (!response.ok) continue;
           const xml = await response.text();
           const items = extractItemsFromFeed(xml);

@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -7,7 +8,7 @@ export const jinaFetcher: Fetcher = {
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {
-      const response = await fetch(`https://r.jina.ai/${url}`, {
+      const response = await fetchWithTimeout(`https://r.jina.ai/${url}`, {
         headers: { Accept: "text/markdown" },
       });
       if (!response.ok) return null;

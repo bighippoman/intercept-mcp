@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { htmlToText } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -18,7 +19,7 @@ export const rawFetcher: Fetcher = {
     const ua = USER_AGENTS[uaIndex % USER_AGENTS.length];
     uaIndex++;
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           "User-Agent": ua,
           "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",

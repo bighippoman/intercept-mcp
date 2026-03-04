@@ -11,7 +11,7 @@
     "build"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node build/index.js",
     "test": "vitest run",
     "test:watch": "vitest",
@@ -19,6 +19,9 @@
   },
   "keywords": ["mcp", "fetch", "jina", "web", "markdown", "claude"],
   "license": "ISC",
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "zod": "^4.3.6"

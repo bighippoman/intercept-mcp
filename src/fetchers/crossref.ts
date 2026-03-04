@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -26,7 +27,7 @@ export const crossrefFetcher: Fetcher = {
     if (!doi) return null;
     const start = Date.now();
     try {
-      const response = await fetch(`https://api.crossref.org/works/${doi}`, {
+      const response = await fetchWithTimeout(`https://api.crossref.org/works/${doi}`, {
         headers: { Accept: "application/json" },
       });
       if (!response.ok) return null;

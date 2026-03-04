@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -18,7 +19,7 @@ export const hackerNewsFetcher: Fetcher = {
     const start = Date.now();
     try {
       const apiUrl = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(url)}&tags=story&hitsPerPage=5`;
-      const response = await fetch(apiUrl);
+      const response = await fetchWithTimeout(apiUrl);
       if (!response.ok) return null;
       const data = (await response.json()) as HNResponse;
       if (!data.hits.length) return null;

@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { extractMeta } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -14,9 +15,9 @@ export const ogMetaFetcher: Fetcher = {
       timing: Date.now() - start,
     };
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; intercept-mcp/1.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; intercept-mcp/2.0.0)",
           Accept: "text/html",
         },
       });

@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -23,8 +24,8 @@ export const redditFetcher: Fetcher = {
     const start = Date.now();
     try {
       const apiUrl = `https://www.reddit.com/search.json?q=url:${encodeURIComponent(url)}&sort=relevance&limit=5`;
-      const response = await fetch(apiUrl, {
-        headers: { "User-Agent": "intercept-mcp/1.0" },
+      const response = await fetchWithTimeout(apiUrl, {
+        headers: { "User-Agent": "intercept-mcp/2.0.0" },
       });
       if (!response.ok) return null;
       const data = (await response.json()) as RedditResponse;

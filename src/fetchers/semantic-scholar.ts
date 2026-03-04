@@ -1,3 +1,4 @@
+import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -16,7 +17,7 @@ export const semanticScholarFetcher: Fetcher = {
     const start = Date.now();
     try {
       const apiUrl = `https://api.semanticscholar.org/graph/v1/paper/URL:${encodeURIComponent(url)}?fields=title,abstract,tldr,authors,year`;
-      const response = await fetch(apiUrl, {
+      const response = await fetchWithTimeout(apiUrl, {
         headers: { Accept: "application/json" },
       });
       if (!response.ok) return null;
