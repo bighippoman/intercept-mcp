@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "3.0.8",
+  "version": "3.0.9",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
@@ -37,10 +37,13 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
+    "@mozilla/readability": "^0.6.0",
+    "linkedom": "^0.18.12",
     "pdf-parse": "^2.4.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/mozilla__readability": "^0.4.2",
     "@types/node": "^25.3.3",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
