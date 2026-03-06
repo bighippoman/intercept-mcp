@@ -132,7 +132,7 @@ The `fetch` tool works without any keys.
 
 Incoming URLs are automatically cleaned:
 
-- Strips 60+ tracking params (UTM, click IDs, analytics, paywall triggers, A/B testing, etc.)
+- Strips 60+ tracking params (UTM, click IDs, analytics, A/B testing, etc.)
 - Removes hash fragments
 - Upgrades to HTTPS
 - Cleans AMP artifacts
@@ -143,7 +143,7 @@ Incoming URLs are automatically cleaned:
 Each fetcher result is scored for quality. Automatic fail on:
 
 - CAPTCHA / Cloudflare challenges
-- Login walls / paywalls
+- Login walls
 - HTTP error pages in body
 - Content under 200 characters
 
