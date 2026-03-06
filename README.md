@@ -2,7 +2,7 @@
 
 Give your AI the ability to read the web. One command, no API keys required.
 
-Without it, your AI hits a URL and gets a 403, a paywall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
+Without it, your AI hits a URL and gets a 403, a wall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
 Handles tweets, YouTube videos, arXiv papers, PDFs, and regular web pages. If the first strategy fails, it tries up to 8 more before giving up.
 
