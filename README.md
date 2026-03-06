@@ -8,6 +8,10 @@ Handles tweets, YouTube videos, arXiv papers, PDFs, and regular web pages. If th
 
 Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
 
+<a href="https://glama.ai/mcp/servers/@bighippoman/intercept-mcp">
+  <img width="380" height="200" src="https://glama.ai/mcp/servers/@bighippoman/intercept-mcp/badge" alt="intercept-mcp MCP server" />
+</a>
+
 ## Install
 
 ### Claude Code
