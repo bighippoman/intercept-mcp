@@ -1,5 +1,13 @@
 import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
+import TurndownService from "turndown";
+import { gfm } from "@truto/turndown-plugin-gfm";
+
+const turndown = new TurndownService({
+  headingStyle: "atx",
+  codeBlockStyle: "fenced",
+});
+turndown.use(gfm);
 
 export interface PageMeta {
   title: string;
@@ -29,6 +37,41 @@ export function htmlToText(html: string): string {
 
   // Regex fallback for pages Readability can't parse
   return regexHtmlToText(html);
+}
+
+export function htmlToMarkdown(html: string): string {
+  if (!html) return "";
+
+  // Try Readability first — it returns article.content as clean HTML
+  try {
+    const { document } = parseHTML(html);
+    const article = new Readability(document).parse();
+    if (article?.content) {
+      const md = turndown.turndown(article.content).trim();
+      if (md.length >= 200) return md;
+    }
+  } catch { /* fall through to regex + turndown */ }
+
+  // Regex fallback: strip noise, then convert remaining HTML to Markdown
+  let text = html;
+  const articleMatch = text.match(/<article[\s>][\s\S]*?<\/article>/i)
+    ?? text.match(/<main[\s>][\s\S]*?<\/main>/i);
+  if (articleMatch) text = articleMatch[0];
+
+  text = text.replace(/<script[\s\S]*?<\/script>/gi, "");
+  text = text.replace(/<style[\s\S]*?<\/style>/gi, "");
+  text = text.replace(/<nav[\s\S]*?<\/nav>/gi, "");
+  text = text.replace(/<header[\s\S]*?<\/header>/gi, "");
+  text = text.replace(/<footer[\s\S]*?<\/footer>/gi, "");
+  text = text.replace(/<aside[\s\S]*?<\/aside>/gi, "");
+  text = text.replace(/<noscript[\s\S]*?<\/noscript>/gi, "");
+  text = text.replace(/<svg[\s\S]*?<\/svg>/gi, "");
+
+  try {
+    return turndown.turndown(text).trim();
+  } catch {
+    return htmlToText(html);
+  }
 }
 
 function regexHtmlToText(html: string): string {

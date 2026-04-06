@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
-import { htmlToText } from "../html.js";
+import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -26,7 +26,7 @@ export const waybackFetcher: Fetcher = {
       const pageResponse = await fetchWithTimeout(rawUrl);
       if (!pageResponse.ok) return null;
       const html = await pageResponse.text();
-      const content = htmlToText(html);
+      const content = htmlToMarkdown(html);
       return { content, source: "wayback", quality: scoreContent(content), timing: Date.now() - start };
     } catch { return null; }
   },

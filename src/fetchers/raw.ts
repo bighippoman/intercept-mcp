@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
-import { htmlToText } from "../html.js";
+import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
@@ -34,7 +34,7 @@ export const rawFetcher: Fetcher = {
       });
       if (!response.ok) return null;
       const html = await response.text();
-      const content = htmlToText(html);
+      const content = htmlToMarkdown(html);
       return { content, source: "raw", quality: scoreContent(content), timing: Date.now() - start };
     } catch { return null; }
   },
