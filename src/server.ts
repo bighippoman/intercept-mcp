@@ -73,7 +73,7 @@ export function createServer(): McpServer {
 
   const server = new McpServer({
     name: "intercept",
-    version: "3.0.0",
+    version: "4.0.0",
   });
 
   server.registerTool(

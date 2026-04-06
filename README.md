@@ -4,7 +4,7 @@ Give your AI the ability to read the web. One command, no API keys required.
 
 Without it, your AI hits a URL and gets a 403, a wall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
-Handles tweets, YouTube videos, arXiv papers, PDFs, and regular web pages. If the first strategy fails, it tries up to 8 more before giving up.
+Handles tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 9 more before giving up.
 
 Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
 
@@ -77,9 +77,11 @@ Known URL patterns are routed to dedicated handlers before the fallback pipeline
 | Pattern | Handler | What you get |
 |---------|---------|-------------|
 | `twitter.com/*/status/*`, `x.com/*/status/*` | Twitter/X | Tweet text, author, media, engagement stats |
-| `youtube.com/watch?v=*`, `youtu.be/*` | YouTube | Title, channel, duration, views, description |
+| `youtube.com/watch?v=*`, `youtu.be/*` | YouTube | Title, channel, duration, views, description, transcript |
 | `arxiv.org/abs/*`, `arxiv.org/pdf/*` | arXiv | Paper metadata, authors, abstract, categories |
 | `*.pdf` | PDF | Extracted text (text-layer PDFs only) |
+| `*.wikipedia.org/wiki/*` | Wikipedia | Clean article content via Wikimedia REST API |
+| `github.com/{owner}/{repo}` | GitHub | Raw README.md content |
 
 ### 2. Fallback pipeline
 
@@ -87,17 +89,20 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 
 | Tier | Fetcher | Strategy |
 |------|---------|----------|
-| 1 | Jina Reader | Clean text extraction service |
+| 1 | Cloudflare Browser Rendering | JS rendering + markdown extraction (optional, needs API token) |
+| 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback + Codetabs | Archived version + CORS proxy (run in parallel) |
-| 3 | Raw fetch | Direct GET with browser headers |
+| 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
 Tier 2 fetchers run in parallel. When both succeed, the higher quality result wins. All other tiers run sequentially.
 
+All fetchers return proper **Markdown** (headings, links, bold, tables, code blocks) via Turndown — not plain text.
+
 ### 3. Caching
 
-Results are cached in-memory for the session (max 100 entries, LRU eviction). Failed URLs are also cached to prevent re-attempting known-dead URLs.
+Results are cached in-memory with TTL (30 min for successes, 5 min for failures). Max 100 entries with LRU eviction. Failed URLs are cached to prevent re-attempting known-dead URLs.
 
 ## Tools
 
@@ -115,18 +120,46 @@ Search the web and return results.
 - `query` (string, required) — Search query
 - `count` (number, optional, 1-20, default 5) — Number of results
 
-Uses Brave Search API if `BRAVE_API_KEY` is set, otherwise falls back to SearXNG.
+Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG, then DuckDuckGo as a last resort.
+
+## Prompts
+
+### `research-topic`
+
+Search for a topic and fetch the top results for a multi-source summary.
+
+- `topic` (string) — The topic to research
+- `depth` (string, default "3") — Number of top results to fetch
+
+### `extract-article`
+
+Fetch a URL and extract the key points from the content.
+
+- `url` (string) — The URL to fetch and summarize
 
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `BRAVE_API_KEY` | No | Brave Search API key ([free tier: 2,000 queries/month](https://brave.com/search/api/)) |
-| `SEARXNG_URL` | No | Self-hosted SearXNG instance URL |
+| `BRAVE_API_KEY` | No | [Brave Search API](https://brave.com/search/api/) key for search |
+| `SEARXNG_URL` | No | Self-hosted SearXNG instance URL (recommended) |
+| `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
+| `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 
-The `search` tool needs at least one backend configured. Public SearXNG instances are rate-limited and unreliable in practice. A free [Brave Search API key](https://brave.com/search/api/) (2,000 queries/month) is the realistic zero-cost option. Set `SEARXNG_URL` only if you run your own instance.
+**Search:** Works out of the box via DuckDuckGo (best-effort). For reliable search, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL`, or get a [Brave Search API key](https://brave.com/search/api/).
 
-The `fetch` tool works without any keys.
+**Fetch:** Works without any keys. Set `CF_API_TOKEN` + `CF_ACCOUNT_ID` to enable Cloudflare Browser Rendering for JavaScript-heavy pages (SPAs, React sites).
+
+## Self-hosting SearXNG
+
+For the most reliable search experience, self-host SearXNG with Docker:
+
+```bash
+# Quick start (included in this repo)
+cd searxng && docker compose up -d
+```
+
+Then set `SEARXNG_URL=http://localhost:8888`. No rate limits, no CAPTCHAs, aggregates Google + Bing + DuckDuckGo + Wikipedia + Brave.
 
 ## URL normalization
 
@@ -150,4 +183,4 @@ Each fetcher result is scored for quality. Automatic fail on:
 ## Requirements
 
 - Node.js >= 18
-- No API keys required for basic use (fetch only)
+- No API keys required for basic use

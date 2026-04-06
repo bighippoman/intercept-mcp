@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "3.0.10",
+  "version": "4.0.0",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
@@ -21,10 +21,16 @@
   "keywords": [
     "mcp",
     "fetch",
-    "jina",
+    "search",
     "web",
     "markdown",
-    "claude"
+    "claude",
+    "youtube",
+    "wikipedia",
+    "github",
+    "cloudflare",
+    "turndown",
+    "searxng"
   ],
   "repository": {
     "type": "git",
