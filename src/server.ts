@@ -23,6 +23,7 @@ import { wikipediaHandler } from "./handlers/wikipedia.js";
 import { githubHandler } from "./handlers/github.js";
 import { braveSearch } from "./search/brave.js";
 import { searxngSearch } from "./search/searxng.js";
+import { duckduckgoSearch } from "./search/duckduckgo.js";
 import type { Fetcher, Handler, SearchResponse } from "./types.js";
 
 const HANDLERS: Handler[] = [
@@ -224,12 +225,16 @@ export function createServer(): McpServer {
       }
 
       if (!searchResult) {
+        searchResult = await duckduckgoSearch(query, count);
+      }
+
+      if (!searchResult) {
         return {
           isError: true,
           content: [
             {
               type: "text" as const,
-              text: "Search failed. To enable search, set the BRAVE_API_KEY environment variable or configure SEARXNG_URL to point to a SearXNG instance.",
+              text: "Search failed. All search backends unavailable. Optionally set BRAVE_API_KEY or SEARXNG_URL for more reliable search.",
             },
           ],
         };
