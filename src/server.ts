@@ -4,6 +4,7 @@ import { normalizeUrl } from "./normalize.js";
 import { runPipeline, formatResult } from "./pipeline.js";
 import { routeUrl } from "./router.js";
 import { LRUCache } from "./cache.js";
+import { cloudflareFetcher } from "./fetchers/cloudflare.js";
 import { jinaFetcher } from "./fetchers/jina.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
@@ -30,6 +31,7 @@ const HANDLERS: Handler[] = [
 ];
 
 const FETCHERS: Fetcher[] = [
+  cloudflareFetcher,
   jinaFetcher,
   waybackFetcher,
   codetabsFetcher,
