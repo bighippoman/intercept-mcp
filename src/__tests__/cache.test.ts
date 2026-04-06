@@ -59,4 +59,26 @@ describe("LRUCache", () => {
     cache.setFailure("https://b.com");
     expect(cache.size).toBe(2);
   });
+
+  it("expires entries after TTL", async () => {
+    const cache = new LRUCache(10, { ttl: 50 });
+    cache.set("https://example.com", MOCK_RESULT);
+    expect(cache.get("https://example.com")).toBeDefined();
+    await new Promise((r) => setTimeout(r, 60));
+    expect(cache.get("https://example.com")).toBeUndefined();
+  });
+
+  it("expires failure entries after failureTtl", async () => {
+    const cache = new LRUCache(10, { ttl: 200, failureTtl: 50 });
+    cache.setFailure("https://dead.com");
+    expect(cache.isFailure("https://dead.com")).toBe(true);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(cache.isFailure("https://dead.com")).toBe(false);
+  });
+
+  it("uses default (no TTL) when options not provided", () => {
+    const cache = new LRUCache(10);
+    cache.set("https://example.com", MOCK_RESULT);
+    expect(cache.get("https://example.com")).toBeDefined();
+  });
 });

@@ -44,7 +44,7 @@ const FETCHERS: Fetcher[] = [
   ogMetaFetcher,
 ];
 
-const cache = new LRUCache(100);
+const cache = new LRUCache(100, { ttl: 30 * 60_000, failureTtl: 5 * 60_000 });
 
 const server = new McpServer({
   name: "intercept",
