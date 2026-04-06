@@ -80,6 +80,7 @@ server.registerTool(
     // Check cache for known failure
     if (cache.isFailure(normalizedUrl)) {
       return {
+        isError: true,
         content: [
           {
             type: "text" as const,
@@ -131,10 +132,18 @@ server.registerTool(
 
     if (pipelineResult.result.source === "none") {
       cache.setFailure(normalizedUrl);
-    } else {
-      cache.set(normalizedUrl, pipelineResult);
+      return {
+        isError: true,
+        content: [
+          {
+            type: "text" as const,
+            text: formatResult(pipelineResult),
+          },
+        ],
+      };
     }
 
+    cache.set(normalizedUrl, pipelineResult);
     return {
       content: [
         {
@@ -204,10 +213,11 @@ server.registerTool(
 
     if (!searchResult) {
       return {
+        isError: true,
         content: [
           {
             type: "text" as const,
-            text: "Search failed. No search backend available. Set BRAVE_API_KEY or SEARXNG_URL environment variable.",
+            text: "Search failed. To enable search, set the BRAVE_API_KEY environment variable or configure SEARXNG_URL to point to a SearXNG instance.",
           },
         ],
       };
