@@ -250,5 +250,56 @@ server.registerTool(
   }
 );
 
+server.registerPrompt(
+  "research-topic",
+  {
+    title: "Research Topic",
+    description:
+      "Search for a topic and fetch the top results. Provides a multi-source summary.",
+    argsSchema: {
+      topic: z.string().describe("The topic to research"),
+      depth: z
+        .string()
+        .optional()
+        .default("3")
+        .describe("Number of top results to fetch (default: 3)"),
+    },
+  },
+  ({ topic, depth }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Search for "${topic}" and fetch the top ${depth} results. For each result, provide a brief summary of the key points. Compare perspectives across sources where relevant.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  "extract-article",
+  {
+    title: "Extract Article",
+    description:
+      "Fetch a URL and extract the key points from the content.",
+    argsSchema: {
+      url: z.string().describe("The URL to fetch and summarize"),
+    },
+  },
+  ({ url }) => ({
+    messages: [
+      {
+        role: "user" as const,
+        content: {
+          type: "text" as const,
+          text: `Fetch the content from ${url} and extract the key points. Summarize the main arguments, findings, or information presented.`,
+        },
+      },
+    ],
+  })
+);
+
 const transport = new StdioServerTransport();
 await server.connect(transport);
