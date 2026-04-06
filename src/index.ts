@@ -191,6 +191,17 @@ server.registerTool(
         .default(5)
         .describe("Number of results (1-20, default 5)"),
     },
+    outputSchema: {
+      results: z.array(
+        z.object({
+          title: z.string(),
+          url: z.string(),
+          snippet: z.string(),
+        })
+      ),
+      source: z.string(),
+      timing: z.number(),
+    },
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -224,6 +235,11 @@ server.registerTool(
     }
 
     return {
+      structuredContent: {
+        results: searchResult.results,
+        source: searchResult.source,
+        timing: searchResult.timing,
+      },
       content: [
         {
           type: "text" as const,
