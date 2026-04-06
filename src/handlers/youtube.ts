@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import type { Handler, HandlerResult } from "../types.js";
+import { fetchTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
 
 function extractVideoId(url: string): string | null {
   const longMatch = url.match(/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/);
@@ -32,6 +33,17 @@ function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+async function getTranscript(videoId: string): Promise<string | null> {
+  try {
+    const segments = await fetchTranscript(videoId);
+    if (!segments || segments.length === 0) return null;
+    const text = segments.map((s: { text: string }) => s.text).join(" ");
+    return text.length > 15_000 ? text.slice(0, 15_000) + "\n\n[Transcript truncated]" : text;
+  } catch {
+    return null;
+  }
 }
 
 export const youtubeHandler: Handler = {
@@ -68,6 +80,13 @@ export const youtubeHandler: Handler = {
       if (details.shortDescription) {
         parts.push("## Description");
         parts.push(details.shortDescription);
+        parts.push("");
+      }
+
+      const transcript = await getTranscript(videoId);
+      if (transcript) {
+        parts.push("## Transcript");
+        parts.push(transcript);
         parts.push("");
       }
 

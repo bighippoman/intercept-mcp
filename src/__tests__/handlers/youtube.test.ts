@@ -1,9 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { youtubeHandler } from "../../handlers/youtube.js";
 
+vi.mock("youtube-transcript/dist/youtube-transcript.esm.js", () => ({
+  fetchTranscript: vi.fn(),
+}));
+
+import { fetchTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
+
 describe("youtubeHandler", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(fetchTranscript).mockResolvedValue([]);
   });
 
   it("has correct name and patterns", () => {
@@ -35,12 +42,6 @@ describe("youtubeHandler", () => {
       };</script>
       </body></html>
     `;
-    const captionXml = `<?xml version="1.0" encoding="utf-8"?>
-      <transcript>
-        <text start="0" dur="5">Hello world</text>
-        <text start="5" dur="3">This is a test</text>
-        <text start="8" dur="4">Thank you for watching</text>
-      </transcript>`;
 
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(new Response(videoPageHtml, { status: 200 }));
@@ -90,5 +91,39 @@ describe("youtubeHandler", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValueOnce(new Error("Network error"));
     const result = await youtubeHandler.handle("https://www.youtube.com/watch?v=error");
     expect(result).toBeNull();
+  });
+
+  it("includes transcript when available", async () => {
+    const html = `<html><body><script>var ytInitialPlayerResponse = {"videoDetails":{"title":"Test Video","author":"Channel","shortDescription":"Description","lengthSeconds":"120","viewCount":"1000"}};</script></body></html>`;
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(html, { status: 200 })
+    );
+
+    vi.mocked(fetchTranscript).mockResolvedValueOnce([
+      { text: "Hello world", offset: 0, duration: 2000, lang: "en" },
+      { text: "This is a test video", offset: 2000, duration: 3000, lang: "en" },
+    ]);
+
+    const result = await youtubeHandler.handle("https://www.youtube.com/watch?v=test123");
+    expect(result).not.toBeNull();
+    expect(result!.content).toContain("## Transcript");
+    expect(result!.content).toContain("Hello world");
+    expect(result!.content).toContain("This is a test video");
+  });
+
+  it("works without transcript (graceful fallback)", async () => {
+    const html = `<html><body><script>var ytInitialPlayerResponse = {"videoDetails":{"title":"Test Video","author":"Channel","shortDescription":"Description","lengthSeconds":"120","viewCount":"1000"}};</script></body></html>`;
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(html, { status: 200 })
+    );
+
+    vi.mocked(fetchTranscript).mockRejectedValueOnce(new Error("No captions available"));
+
+    const result = await youtubeHandler.handle("https://www.youtube.com/watch?v=test456");
+    expect(result).not.toBeNull();
+    expect(result!.content).toContain("Test Video");
+    expect(result!.content).not.toContain("## Transcript");
   });
 });
