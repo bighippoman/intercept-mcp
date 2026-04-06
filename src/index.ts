@@ -67,6 +67,12 @@ server.registerTool(
         .optional()
         .describe("Stop at this tier (1-5, default 5). Lower = faster but fewer fallbacks."),
     },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   async ({ url, maxTier }) => {
     const normalizedUrl = normalizeUrl(url);
@@ -175,6 +181,12 @@ server.registerTool(
         .optional()
         .default(5)
         .describe("Number of results (1-20, default 5)"),
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
     },
   },
   async ({ query, count }) => {
