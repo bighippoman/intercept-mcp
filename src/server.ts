@@ -19,6 +19,7 @@ import { twitterHandler } from "./handlers/twitter.js";
 import { youtubeHandler } from "./handlers/youtube.js";
 import { arxivHandler } from "./handlers/arxiv.js";
 import { pdfHandler } from "./handlers/pdf.js";
+import { wikipediaHandler } from "./handlers/wikipedia.js";
 import { githubHandler } from "./handlers/github.js";
 import { braveSearch } from "./search/brave.js";
 import { searxngSearch } from "./search/searxng.js";
@@ -29,6 +30,7 @@ const HANDLERS: Handler[] = [
   youtubeHandler,
   arxivHandler,
   pdfHandler,
+  wikipediaHandler,
   githubHandler,
 ];
 
