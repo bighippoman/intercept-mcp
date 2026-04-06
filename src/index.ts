@@ -179,7 +179,7 @@ server.registerTool(
   {
     title: "Web Search",
     description:
-      "Search the web and return results. Uses Brave Search API if BRAVE_API_KEY is set, otherwise falls back to SearXNG. Set BRAVE_API_KEY for best results (free tier: 2,000 queries/month).",
+      "Search the web and return results. Uses Brave Search API if BRAVE_API_KEY is set, otherwise falls back to SearXNG.",
     inputSchema: {
       query: z.string().describe("Search query"),
       count: z
