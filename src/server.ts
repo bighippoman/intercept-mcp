@@ -9,6 +9,7 @@ import { jinaFetcher } from "./fetchers/jina.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { rawFetcher } from "./fetchers/raw.js";
+import { stealthFetcher } from "./fetchers/stealth.js";
 import { rssFetcher } from "./fetchers/rss.js";
 import { crossrefFetcher } from "./fetchers/crossref.js";
 import { semanticScholarFetcher } from "./fetchers/semantic-scholar.js";
@@ -41,6 +42,7 @@ const FETCHERS: Fetcher[] = [
   waybackFetcher,
   codetabsFetcher,
   rawFetcher,
+  stealthFetcher,
   rssFetcher,
   crossrefFetcher,
   semanticScholarFetcher,
@@ -73,7 +75,7 @@ export function createServer(): McpServer {
 
   const server = new McpServer({
     name: "intercept",
-    version: "4.0.0",
+    version: "4.1.0",
   });
 
   server.registerTool(

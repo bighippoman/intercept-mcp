@@ -93,6 +93,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback + Codetabs | Archived version + CORS proxy (run in parallel) |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
+| 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
@@ -145,10 +146,19 @@ Fetch a URL and extract the key points from the content.
 | `SEARXNG_URL` | No | Self-hosted SearXNG instance URL (recommended) |
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
+| `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
 
 **Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
 **Fetch:** Works without any keys. Set `CF_API_TOKEN` + `CF_ACCOUNT_ID` to enable Cloudflare Browser Rendering for JavaScript-heavy pages (SPAs, React sites).
+
+### Stealth fetch (USE_STEALTH_FETCH)
+
+**Use at your own risk.** When enabled, this adds a fetcher that impersonates real browser TLS fingerprints (Chrome/Firefox cipher suites, HTTP/2 settings, header ordering) using [got-scraping](https://github.com/apify/got-scraping). This can bypass bot detection and CAPTCHA triggers on sites that would otherwise block automated requests.
+
+This fetcher runs at tier 3 after the regular raw fetch. If the raw fetch gets blocked (CAPTCHA, Cloudflare challenge, 403), the stealth fetcher retries with browser impersonation.
+
+**This may violate the terms of service of some websites.** The authors of intercept-mcp take no responsibility for how this feature is used. It is disabled by default and must be explicitly opted into.
 
 ## Self-hosting SearXNG
 

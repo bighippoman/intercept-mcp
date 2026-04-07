@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "4.0.0",
+  "version": "4.1.0",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
@@ -46,6 +46,7 @@
     "@mozilla/readability": "^0.6.0",
     "@truto/turndown-plugin-gfm": "^1.0.2",
     "duck-duck-scrape": "^2.2.7",
+    "got-scraping": "^4.2.1",
     "linkedom": "^0.18.12",
     "pdf-parse": "^2.4.5",
     "turndown": "^7.2.4",
