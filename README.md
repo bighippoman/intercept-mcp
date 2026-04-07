@@ -4,7 +4,7 @@ Give your AI the ability to read the web. One command, no API keys required.
 
 Without it, your AI hits a URL and gets a 403, a wall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
-Handles tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 9 more before giving up.
+Handles tweets, YouTube videos (with transcripts when available), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 10 more before giving up.
 
 Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
 
@@ -76,8 +76,8 @@ Known URL patterns are routed to dedicated handlers before the fallback pipeline
 
 | Pattern | Handler | What you get |
 |---------|---------|-------------|
-| `twitter.com/*/status/*`, `x.com/*/status/*` | Twitter/X | Tweet text, author, media, engagement stats |
-| `youtube.com/watch?v=*`, `youtu.be/*` | YouTube | Title, channel, duration, views, description, transcript |
+| `twitter.com/*/status/*`, `x.com/*/status/*` | Twitter/X | Tweet text, author, media, engagement stats (via third-party APIs) |
+| `youtube.com/watch?v=*`, `youtu.be/*` | YouTube | Title, channel, duration, views, description, transcript (when captions available) |
 | `arxiv.org/abs/*`, `arxiv.org/pdf/*` | arXiv | Paper metadata, authors, abstract, categories |
 | `*.pdf` | PDF | Extracted text (text-layer PDFs only) |
 | `*.wikipedia.org/wiki/*` | Wikipedia | Clean article content via Wikimedia REST API |
@@ -120,7 +120,7 @@ Search the web and return results.
 - `query` (string, required) — Search query
 - `count` (number, optional, 1-20, default 5) — Number of results
 
-Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG, then DuckDuckGo as a last resort.
+Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG if `SEARXNG_URL` is set, then DuckDuckGo as an unreliable last resort.
 
 ## Prompts
 
@@ -146,20 +146,22 @@ Fetch a URL and extract the key points from the content.
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 
-**Search:** Works out of the box via DuckDuckGo (best-effort). For reliable search, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL`, or get a [Brave Search API key](https://brave.com/search/api/).
+**Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
 **Fetch:** Works without any keys. Set `CF_API_TOKEN` + `CF_ACCOUNT_ID` to enable Cloudflare Browser Rendering for JavaScript-heavy pages (SPAs, React sites).
 
 ## Self-hosting SearXNG
 
-For the most reliable search experience, self-host SearXNG with Docker:
+For reliable search, self-host SearXNG with Docker. A config is included in the [repo](https://github.com/bighippoman/intercept-mcp/tree/main/searxng):
 
 ```bash
-# Quick start (included in this repo)
-cd searxng && docker compose up -d
+git clone https://github.com/bighippoman/intercept-mcp.git
+cd intercept-mcp/searxng && docker compose up -d
 ```
 
 Then set `SEARXNG_URL=http://localhost:8888`. No rate limits, no CAPTCHAs, aggregates Google + Bing + DuckDuckGo + Wikipedia + Brave.
+
+Or use any existing SearXNG instance — just set `SEARXNG_URL` to its URL.
 
 ## URL normalization
 
