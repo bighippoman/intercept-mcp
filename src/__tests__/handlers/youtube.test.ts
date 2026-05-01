@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { youtubeHandler } from "../../handlers/youtube.js";
 
-vi.mock("youtube-transcript/dist/youtube-transcript.esm.js", () => ({
+vi.mock("youtube-transcript", () => ({
   fetchTranscript: vi.fn(),
 }));
 
-import { fetchTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
+import { fetchTranscript } from "youtube-transcript";
 
 describe("youtubeHandler", () => {
   beforeEach(() => {
