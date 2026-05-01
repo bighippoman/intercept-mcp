@@ -7,6 +7,8 @@ import { LRUCache } from "./cache.js";
 import { cloudflareFetcher } from "./fetchers/cloudflare.js";
 import { jinaFetcher } from "./fetchers/jina.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
+import { archivePhFetcher } from "./fetchers/archive-ph.js";
+import { googleCacheFetcher } from "./fetchers/google-cache.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { stealthFetcher } from "./fetchers/stealth.js";
@@ -40,6 +42,8 @@ const FETCHERS: Fetcher[] = [
   cloudflareFetcher,
   jinaFetcher,
   waybackFetcher,
+  archivePhFetcher,
+  googleCacheFetcher,
   codetabsFetcher,
   rawFetcher,
   stealthFetcher,
