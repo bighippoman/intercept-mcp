@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
