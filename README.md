@@ -89,7 +89,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 
 | Tier | Fetcher | Strategy |
 |------|---------|----------|
-| 1 | Cloudflare Browser Rendering | JS rendering + markdown extraction (optional, needs API token) |
+| 1 | Cloudflare Browser Run | JS rendering + markdown extraction (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback + Codetabs | Archived version + CORS proxy (run in parallel) |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
@@ -150,7 +150,7 @@ Fetch a URL and extract the key points from the content.
 
 **Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
-**Fetch:** Works without any keys. Set `CF_API_TOKEN` + `CF_ACCOUNT_ID` to enable Cloudflare Browser Rendering for JavaScript-heavy pages (SPAs, React sites).
+**Fetch:** Works without any keys. Set `CF_API_TOKEN` + `CF_ACCOUNT_ID` to enable Cloudflare Browser Run (formerly Browser Rendering) for JavaScript-heavy pages (SPAs, React sites).
 
 ### Stealth fetch (USE_STEALTH_FETCH)
 
