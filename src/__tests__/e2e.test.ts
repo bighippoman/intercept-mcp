@@ -538,7 +538,6 @@ describe("fetch tool via MCP protocol (real network)", () => {
     const text = getText(result);
     expect(text).toContain("Example Domain");
     expect(text).toContain("source:");
-    expect(text).toContain("quality:");
   }, 30_000);
 
   it("fetches an arxiv paper end-to-end", async () => {
@@ -595,8 +594,8 @@ describe("fetch tool via MCP protocol (real network)", () => {
       arguments: { url: "https://httpbin.org/get" },
     });
     const text = getText(result);
-    expect(text).toContain("time:");
-    expect(text).toContain("attempts:");
+    expect(text).toContain("source:");
+    expect(text).toContain("✓");
   }, 30_000);
 });
 

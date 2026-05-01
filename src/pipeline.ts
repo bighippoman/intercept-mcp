@@ -119,15 +119,14 @@ export async function runPipeline(
 export function formatResult(pipelineResult: PipelineResult): string {
   const { result, attempts } = pipelineResult;
 
-  const attemptsLog = attempts
+  const tried = attempts
     .map((a) => {
-      if (a.status === "success") return `  - ${a.name}: success (${a.quality}, ${formatTiming(a.timing ?? 0)})`;
-      if (a.status === "skipped") return `  - ${a.name}: skipped (${a.reason})`;
-      return `  - ${a.name}: failed (${a.reason})`;
+      if (a.status === "success") return `${a.name} ✓`;
+      return a.name;
     })
-    .join("\n");
+    .join(" → ");
 
-  return `${result.content}\n\n---\nsource: ${result.source}\nquality: ${result.quality}\ntime: ${formatTiming(result.timing)}\nattempts:\n${attemptsLog}`;
+  return `${result.content}\n\n---\nsource: ${result.source} | ${formatTiming(result.timing)} | ${tried}`;
 }
 
 function formatTiming(ms: number): string {

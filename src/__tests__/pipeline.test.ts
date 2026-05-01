@@ -116,10 +116,11 @@ describe("formatResult", () => {
     });
     expect(output).toContain("Article content");
     expect(output).toContain("source: jina");
-    expect(output).toContain("quality: 0.85");
+    expect(output).toContain("1.2s");
+    expect(output).toContain("jina ✓");
   });
 
-  it("formats multi-attempt result with failure reasons", () => {
+  it("formats multi-attempt result with compact trail", () => {
     const output = formatResult({
       result: { content: "Content", source: "raw", quality: 0.6, timing: 300 },
       attempts: [
@@ -128,8 +129,7 @@ describe("formatResult", () => {
         { name: "raw", status: "success", quality: 0.6, timing: 300 },
       ],
     });
-    expect(output).toContain("jina: failed (HTTP 403)");
-    expect(output).toContain("archive.ph: failed (not archived)");
-    expect(output).toContain("raw: success");
+    expect(output).toContain("source: raw");
+    expect(output).toContain("jina → archive.ph → raw ✓");
   });
 });
