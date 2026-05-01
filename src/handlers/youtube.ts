@@ -1,6 +1,6 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import type { Handler, HandlerResult } from "../types.js";
-import { fetchTranscript } from "youtube-transcript/dist/youtube-transcript.esm.js";
+import { fetchTranscript } from "youtube-transcript";
 
 function extractVideoId(url: string): string | null {
   const longMatch = url.match(/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/);
