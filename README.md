@@ -4,7 +4,7 @@ Give your AI the ability to read the web. One command, no API keys required.
 
 Without it, your AI hits a URL and gets a 403, a wall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
-Handles tweets, YouTube videos (with transcripts when available), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 10 more before giving up.
+Handles tweets, YouTube videos (with transcripts when available), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 13 more before giving up.
 
 Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
 
@@ -91,13 +91,17 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 |------|---------|----------|
 | 1 | Cloudflare Browser Run | JS rendering + markdown extraction (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
-| 2 | Wayback + Codetabs | Archived version + CORS proxy (run in parallel) |
+| 2 | Wayback Machine | Archived version from archive.org |
+| 2 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
+| 2 | Google Cache | Google's cached page version |
+| 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
+| 2 | Codetabs | CORS proxy |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
-Tier 2 fetchers run in parallel. When both succeed, the higher quality result wins. All other tiers run sequentially.
+Tier 2 fetchers run in parallel. When multiple succeed, the highest quality result wins. All other tiers run sequentially.
 
 All fetchers return proper **Markdown** (headings, links, bold, tables, code blocks) via Turndown — not plain text.
 
