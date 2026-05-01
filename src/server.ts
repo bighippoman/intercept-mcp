@@ -9,6 +9,7 @@ import { jinaFetcher } from "./fetchers/jina.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
 import { archivePhFetcher } from "./fetchers/archive-ph.js";
 import { googleCacheFetcher } from "./fetchers/google-cache.js";
+import { arquivoFetcher } from "./fetchers/arquivo.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { stealthFetcher } from "./fetchers/stealth.js";
@@ -44,6 +45,7 @@ const FETCHERS: Fetcher[] = [
   waybackFetcher,
   archivePhFetcher,
   googleCacheFetcher,
+  arquivoFetcher,
   codetabsFetcher,
   rawFetcher,
   stealthFetcher,

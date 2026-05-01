@@ -49,6 +49,9 @@ export const archivePhFetcher: Fetcher = {
 
       if (!snapshotUrl) return null;
 
+      // Delay to avoid archive.ph rate limiting (triggers captcha)
+      await new Promise((r) => setTimeout(r, 3_000));
+
       // Use got-scraping to bypass archive.ph's Cloudflare captcha
       // (stealth TLS fingerprint impersonation works against their challenge)
       const { gotScraping } = await import("got-scraping");
