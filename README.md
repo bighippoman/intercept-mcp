@@ -91,6 +91,16 @@ Every successful fetch contributes back automatically. Entries gain trust throug
 
 Opt out entirely with `INTERCEPT_SHARED_CACHE=false`, or use read-only mode (consume but never contribute) with `INTERCEPT_CACHE_READ_ONLY=true`.
 
+#### agentsweb.org API
+
+agentsweb.org also exposes standalone endpoints for direct use:
+
+- **`/web?q=`** — search the web
+- **`/research?q=`** — search + fetch + cache in one call
+- **`/fetch?url=`** — fetch on demand, auto-cached
+
+See [agentsweb.org/docs](https://agentsweb.org/docs) for full API documentation.
+
 ### 3. Fallback pipeline
 
 If no handler matches (or the handler returns nothing), the URL enters the multi-tier pipeline:

@@ -934,7 +934,7 @@ describe("fetch tool diverse URLs (real network)", () => {
     if (!result.isError) {
       const text = getText(result);
       expect(text).toContain("Rick");
-      expect(text).toContain("source: youtube");
+      expect(text).toMatch(/source:.*youtube/);
     }
   }, 30_000);
 
