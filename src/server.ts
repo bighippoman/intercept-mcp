@@ -28,6 +28,7 @@ import { githubHandler } from "./handlers/github.js";
 import { braveSearch } from "./search/brave.js";
 import { searxngSearch } from "./search/searxng.js";
 import { duckduckgoSearch } from "./search/duckduckgo.js";
+import { sharedCacheRead, sharedCacheWrite, sharedCacheConfirm } from "./shared-cache.js";
 import type { Fetcher, Handler, SearchResponse } from "./types.js";
 
 const HANDLERS: Handler[] = [
@@ -138,6 +139,26 @@ export function createServer(): McpServer {
         };
       }
 
+      // Tier 0: Check shared agentsweb.org cache
+      if (process.env.INTERCEPT_SHARED_CACHE !== "false") {
+        const sharedResult = await sharedCacheRead(normalizedUrl);
+        if (sharedResult && sharedResult.quality >= 0.3) {
+          const pipelineResult = {
+            result: sharedResult,
+            attempts: [{ name: "agentsweb", status: "success" as const, quality: sharedResult.quality, timing: sharedResult.timing }],
+          };
+          cache.set(normalizedUrl, pipelineResult);
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: formatResult(pipelineResult),
+              },
+            ],
+          };
+        }
+      }
+
       const handlerResult = await routeUrl(normalizedUrl, HANDLERS);
       if (handlerResult) {
         const pipelineResult = {
@@ -145,6 +166,10 @@ export function createServer(): McpServer {
           attempts: [{ name: handlerResult.source, status: "success" as const, quality: 1.0, timing: handlerResult.timing }],
         };
         cache.set(normalizedUrl, pipelineResult);
+        // Contribute to shared cache (fire-and-forget)
+        if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
+          sharedCacheWrite(normalizedUrl, handlerResult.content, handlerResult.source);
+        }
         return {
           content: [
             {
@@ -173,6 +198,12 @@ export function createServer(): McpServer {
       }
 
       cache.set(normalizedUrl, pipelineResult);
+
+      // Contribute to shared cache (fire-and-forget)
+      if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true" && process.env.INTERCEPT_SHARED_CACHE !== "false") {
+        sharedCacheWrite(normalizedUrl, pipelineResult.result.content, pipelineResult.result.source);
+      }
+
       return {
         content: [
           {
