@@ -2,6 +2,7 @@ import { Readability } from "@mozilla/readability";
 import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import { gfm } from "@truto/turndown-plugin-gfm";
+import { convertHtmlToMarkdown } from "./html-to-md.js";
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -130,4 +131,13 @@ export function extractMeta(html: string): PageMeta {
     author: getMetaContent(html, "article:author"),
     publishedTime: getMetaContent(html, "article:published_time"),
   };
+}
+
+/**
+ * Zero-dependency HTML-to-Markdown converter (no Readability, no Turndown).
+ * Uses regex-based content extraction and conversion from html-to-md.ts.
+ */
+export function htmlToMarkdownNative(html: string): string {
+  if (!html) return "";
+  return convertHtmlToMarkdown(html);
 }
