@@ -148,6 +148,21 @@ export function createServer(): McpServer {
             attempts: [{ name: "agentsweb", status: "success" as const, quality: sharedResult.quality, timing: sharedResult.timing }],
           };
           cache.set(normalizedUrl, pipelineResult);
+
+          // Self-healing: verify cached content in background
+          // If our local fetch matches, confirm it (trust++).
+          // If it doesn't match, overwrite with correct content.
+          if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
+            (async () => {
+              try {
+                const localResult = await runPipeline(normalizedUrl, FETCHERS, { maxTier: 2 });
+                if (localResult.result.source !== "none" && localResult.result.quality >= 0.5) {
+                  sharedCacheConfirm(normalizedUrl, localResult.result.content);
+                }
+              } catch {}
+            })();
+          }
+
           return {
             content: [
               {
