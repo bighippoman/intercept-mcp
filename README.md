@@ -4,7 +4,7 @@ Give your AI the ability to read the web. One command, no API keys required.
 
 Without it, your AI hits a URL and gets a 403, a wall, or a wall of raw HTML. With intercept, it almost always gets the content — clean markdown, ready to use.
 
-Handles tweets, YouTube videos (with transcripts when available), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 13 more before giving up.
+Handles tweets, YouTube videos (with transcripts when available), arXiv papers, PDFs, Wikipedia articles, and GitHub repos. If the first strategy fails, it tries up to 14 more before giving up.
 
 Works with any MCP client: Claude Code, Claude Desktop, Codex, Cursor, Windsurf, Cline, and more.
 
@@ -68,7 +68,7 @@ No API keys needed for the `fetch` tool.
 
 ## How it works
 
-URLs are processed in three stages:
+URLs are processed in four stages:
 
 ### 1. Site-specific handlers
 
@@ -83,12 +83,21 @@ Known URL patterns are routed to dedicated handlers before the fallback pipeline
 | `*.wikipedia.org/wiki/*` | Wikipedia | Clean article content via Wikimedia REST API |
 | `github.com/{owner}/{repo}` | GitHub | Raw README.md content |
 
-### 2. Fallback pipeline
+### 2. Shared cache (agentsweb.org)
+
+Before hitting any fetcher, every request checks [agentsweb.org](https://agentsweb.org) — a global shared markdown cache for AI agents. If another agent already fetched this URL, you get the result in under 50ms.
+
+Every successful fetch contributes back automatically. Entries gain trust through a self-healing consensus model: when independent instances fetch the same URL and confirm the same content, confidence increases.
+
+Opt out entirely with `INTERCEPT_SHARED_CACHE=false`, or use read-only mode (consume but never contribute) with `INTERCEPT_CACHE_READ_ONLY=true`.
+
+### 3. Fallback pipeline
 
 If no handler matches (or the handler returns nothing), the URL enters the multi-tier pipeline:
 
 | Tier | Fetcher | Strategy |
 |------|---------|----------|
+| 0 | agentsweb.org | Global shared markdown cache — instant if another agent already fetched this URL |
 | 1 | Cloudflare Browser Run | JS rendering + markdown extraction (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback Machine | Archived version from archive.org |
@@ -105,7 +114,7 @@ Tier 2 fetchers run in parallel. When multiple succeed, the highest quality resu
 
 All fetchers return proper **Markdown** (headings, links, bold, tables, code blocks) via Turndown — not plain text.
 
-### 3. Caching
+### 4. Caching
 
 Results are cached in-memory with TTL (30 min for successes, 5 min for failures). Max 100 entries with LRU eviction. Failed URLs are cached to prevent re-attempting known-dead URLs.
 
@@ -151,6 +160,8 @@ Fetch a URL and extract the key points from the content.
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
+| `INTERCEPT_SHARED_CACHE` | No | Set to `false` to disable the agentsweb.org shared cache |
+| `INTERCEPT_CACHE_READ_ONLY` | No | Set to `true` to consume but never contribute to the shared cache |
 
 **Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
