@@ -2,7 +2,6 @@ import type { Fetcher, FetchResult, PipelineResult, PipelineOptions, AttemptReco
 
 const DEFAULT_QUALITY_THRESHOLD = 0.3;
 const PARALLEL_TIER = 2;
-const TIER_PREFERENCE: string[] = [];
 
 export async function runPipeline(
   url: string,
@@ -58,8 +57,7 @@ export async function runPipeline(
           continue;
         }
 
-        if (!bestResult || result.quality > bestResult.quality ||
-            (result.quality === bestResult.quality && TIER_PREFERENCE.includes(f.name))) {
+        if (!bestResult || result.quality > bestResult.quality) {
           bestResult = result;
           bestFetcher = f;
         }

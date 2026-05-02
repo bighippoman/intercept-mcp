@@ -20,11 +20,12 @@ function cleanJinaMarkdown(md: string): string {
       // Allow isolated links but skip runs of 3+ (nav menus)
       if (consecutiveNavLinks >= 3) continue;
     } else {
-      // If we were in a nav run, retroactively skip the first 1-2 links too
+      // If we were in a nav run, retroactively remove the 1-2 nav links we tentatively kept
       if (consecutiveNavLinks >= 3) {
-        // Remove the 1-2 nav links we tentatively kept
-        while (cleaned.length && /^\*?\s*\[.{1,40}\]\([^)]{1,80}\)\s*$/.test(cleaned[cleaned.length - 1].trim())) {
+        let pops = 0;
+        while (pops < 2 && cleaned.length && /^\*?\s*\[.{1,40}\]\([^)]{1,80}\)\s*$/.test(cleaned[cleaned.length - 1].trim())) {
           cleaned.pop();
+          pops++;
         }
       }
       consecutiveNavLinks = 0;

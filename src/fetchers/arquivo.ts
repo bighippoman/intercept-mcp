@@ -24,7 +24,11 @@ export const arquivoFetcher: Fetcher = {
       const firstLine = text.trim().split("\n")[0];
       if (!firstLine) return null;
 
-      const entry = JSON.parse(firstLine) as ArquivoCdxEntry;
+      const parsed = JSON.parse(firstLine);
+      // Skip header arrays from some CDX implementations
+      if (Array.isArray(parsed)) return null;
+      const entry = parsed as ArquivoCdxEntry;
+      if (!entry.url || !entry.timestamp) return null;
       const { url: originalUrl, timestamp } = entry;
 
       // Fetch raw original HTML using the id_ modifier (no wrapper/toolbar)

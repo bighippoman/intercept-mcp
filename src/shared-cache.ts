@@ -55,7 +55,7 @@ export async function sharedCacheRead(url: string): Promise<FetchResult | null> 
     if (!response.ok) return null;
 
     const data = (await response.json()) as SharedCacheResponse;
-    if (!data.markdown) return null;
+    if (!data.markdown || data.markdown.length < 500) return null;
 
     return {
       content: data.markdown,

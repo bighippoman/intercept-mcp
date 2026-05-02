@@ -22,7 +22,7 @@ function parseLatestMementoUrl(timemap: string): string | null {
 
 export const archivePhFetcher: Fetcher = {
   name: "archive-ph",
-  tier: 2,
+  tier: 3,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {

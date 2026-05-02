@@ -157,7 +157,11 @@ export function createServer(): McpServer {
               try {
                 const localResult = await runPipeline(normalizedUrl, FETCHERS, { maxTier: 2 });
                 if (localResult.result.source !== "none" && localResult.result.quality >= 0.5) {
-                  sharedCacheConfirm(normalizedUrl, localResult.result.content);
+                  await sharedCacheConfirm(normalizedUrl, localResult.result.content).catch(() => {});
+                  // If local content is fresher/better, update the cache
+                  if (localResult.result.quality > sharedResult.quality) {
+                    sharedCacheWrite(normalizedUrl, localResult.result.content, localResult.result.source);
+                  }
                 }
               } catch {}
             })();
