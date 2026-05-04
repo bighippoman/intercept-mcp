@@ -172,6 +172,10 @@ Fetch a URL and extract the key points from the content.
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
 | `INTERCEPT_SHARED_CACHE` | No | Set to `false` to disable the agentsweb.org shared cache |
 | `INTERCEPT_CACHE_READ_ONLY` | No | Set to `true` to consume but never contribute to the shared cache |
+| `INTERCEPT_CACHE_TTL_MS` | No | In-memory cache TTL for successful fetches in ms (default `3600000` = 60 min) |
+| `INTERCEPT_CACHE_FAILURE_TTL_MS` | No | In-memory cache TTL for failed fetches in ms (default `300000` = 5 min) |
+| `INTERCEPT_CACHE_SIZE` | No | Max in-memory cache entries (default `250`) |
+| `HTTPS_PROXY` / `HTTP_PROXY` | No | Standard proxy passthrough — routes all outbound fetches (including stealth) through the proxy. Honors `NO_PROXY`. |
 
 **Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
@@ -184,6 +188,16 @@ Fetch a URL and extract the key points from the content.
 This fetcher runs at tier 3 after the regular raw fetch. If the raw fetch gets blocked (CAPTCHA, Cloudflare challenge, 403), the stealth fetcher retries with browser impersonation.
 
 **This may violate the terms of service of some websites.** The authors of intercept-mcp take no responsibility for how this feature is used. It is disabled by default and must be explicitly opted into.
+
+### Bring-your-own proxy (HTTPS_PROXY)
+
+If raw fetches start getting flagged, the most effective fix is usually a clean outbound IP — not a fancier fingerprint. intercept-mcp honors the standard `HTTPS_PROXY` / `HTTP_PROXY` / `NO_PROXY` env vars, so you can route all outbound traffic through whatever proxy you already have:
+
+```bash
+HTTPS_PROXY=http://user:pass@proxy.example.com:8080 npx intercept-mcp
+```
+
+This works with any HTTP(S) proxy — a self-hosted Squid, a Tailscale exit node, a $5 VPS running [3proxy](https://github.com/3proxy/3proxy), or commercial residential proxies (Bright Data, Oxylabs, etc.). The stealth fetcher and `got-scraping` calls also pick this up automatically.
 
 ## Self-hosting SearXNG
 
