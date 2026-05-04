@@ -7,6 +7,7 @@
  *
  * Only active when USE_STEALTH_FETCH=true is set.
  */
+import { getProxyUrl } from "../fetch-with-timeout.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -20,6 +21,7 @@ export const stealthFetcher: Fetcher = {
     const start = Date.now();
     try {
       const { gotScraping } = await import("got-scraping");
+      const proxyUrl = getProxyUrl();
 
       const response = await gotScraping({
         url,
@@ -30,6 +32,7 @@ export const stealthFetcher: Fetcher = {
         timeout: { request: 12_000 },
         followRedirect: true,
         maxRedirects: 5,
+        ...(proxyUrl ? { proxyUrl } : {}),
       });
 
       if (response.statusCode < 200 || response.statusCode >= 400) return null;

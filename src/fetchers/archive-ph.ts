@@ -1,4 +1,4 @@
-import { fetchWithTimeout } from "../fetch-with-timeout.js";
+import { fetchWithTimeout, getProxyUrl } from "../fetch-with-timeout.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
@@ -55,6 +55,7 @@ export const archivePhFetcher: Fetcher = {
       // Use got-scraping to bypass archive.ph's Cloudflare captcha
       // (stealth TLS fingerprint impersonation works against their challenge)
       const { gotScraping } = await import("got-scraping");
+      const proxyUrl = getProxyUrl();
 
       const response = await gotScraping({
         url: snapshotUrl,
@@ -65,6 +66,7 @@ export const archivePhFetcher: Fetcher = {
         timeout: { request: 15_000 },
         followRedirect: true,
         maxRedirects: 5,
+        ...(proxyUrl ? { proxyUrl } : {}),
       });
 
       if (response.statusCode < 200 || response.statusCode >= 400) return null;

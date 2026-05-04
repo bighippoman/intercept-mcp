@@ -77,8 +77,18 @@ function formatSearchResult(searchResult: SearchResponse): string {
   return lines.join("\n");
 }
 
+function envInt(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (!raw) return fallback;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 export function createServer(): McpServer {
-  const cache = new LRUCache(100, { ttl: 30 * 60_000, failureTtl: 5 * 60_000 });
+  const cache = new LRUCache(envInt("INTERCEPT_CACHE_SIZE", 250), {
+    ttl: envInt("INTERCEPT_CACHE_TTL_MS", 60 * 60_000),
+    failureTtl: envInt("INTERCEPT_CACHE_FAILURE_TTL_MS", 5 * 60_000),
+  });
 
   const server = new McpServer({
     name: "intercept",
