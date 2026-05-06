@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 const CACHE_URL = "https://agentsweb.org";
-const TIMEOUT = 5_000;
+const TIMEOUT = 2_500;
 
 // Persistent instance ID (anonymous, survives restarts)
 let instanceId: string | null = null;
