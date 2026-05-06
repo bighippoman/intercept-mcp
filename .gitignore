@@ -3,3 +3,5 @@ build/
 *.tgz
 .mcpregistry_*
 *-test.mjs
+.env*
+.dev.vars
