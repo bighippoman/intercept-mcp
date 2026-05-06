@@ -85,7 +85,7 @@ Known URL patterns are routed to dedicated handlers before the fallback pipeline
 
 ### 2. Shared cache (agentsweb.org)
 
-Before hitting any fetcher, every request checks [agentsweb.org](https://agentsweb.org) — a global shared markdown cache for AI agents. If another agent already fetched this URL, you get the result in under 50ms.
+Before hitting any fetcher, every request checks [agentsweb.org](https://agentsweb.org) — a global shared markdown cache for AI agents backed by a 9-source parallel fetch pipeline with JS/SPA rendering (React, Vue, Angular via Cloudflare Browser Run). If another agent already fetched this URL, you get the result in under 50ms.
 
 Every successful fetch contributes back automatically. Entries gain trust through a self-healing consensus model: when independent instances fetch the same URL and confirm the same content, confidence increases.
 
@@ -108,7 +108,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | Tier | Fetcher | Strategy |
 |------|---------|----------|
 | 0 | agentsweb.org | Global shared markdown cache — instant if another agent already fetched this URL |
-| 1 | Cloudflare Browser Run | JS rendering + markdown extraction (optional, needs API token) |
+| 1 | Cloudflare Browser Run | JS/SPA rendering + markdown extraction — also powers [agentsweb.org](https://agentsweb.org) (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback Machine | Archived version from archive.org |
 | 2 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
