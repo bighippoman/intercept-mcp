@@ -30,6 +30,10 @@ import { searxngSearch } from "./search/searxng.js";
 import { duckduckgoSearch } from "./search/duckduckgo.js";
 import { sharedCacheRead, sharedCacheWrite, sharedCacheConfirm } from "./shared-cache.js";
 import type { Fetcher, Handler, SearchResponse } from "./types.js";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { version: PKG_VERSION } = require("../package.json") as { version: string };
 
 const HANDLERS: Handler[] = [
   twitterHandler,
@@ -92,7 +96,7 @@ export function createServer(): McpServer {
 
   const server = new McpServer({
     name: "intercept",
-    version: "4.1.0",
+    version: PKG_VERSION,
   });
 
   server.registerTool(
@@ -149,7 +153,29 @@ export function createServer(): McpServer {
         };
       }
 
-      // Tier 0: Check shared agentsweb.org cache
+      // Specialized handlers first — they produce structured, high-quality output
+      const handlerResult = await routeUrl(normalizedUrl, HANDLERS);
+      if (handlerResult) {
+        const pipelineResult = {
+          result: { content: handlerResult.content, source: handlerResult.source, quality: 1.0, timing: handlerResult.timing },
+          attempts: [{ name: handlerResult.source, status: "success" as const, quality: 1.0, timing: handlerResult.timing }],
+        };
+        cache.set(normalizedUrl, pipelineResult);
+        // Contribute to shared cache (fire-and-forget)
+        if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true" && process.env.INTERCEPT_SHARED_CACHE !== "false") {
+          sharedCacheWrite(normalizedUrl, handlerResult.content, handlerResult.source);
+        }
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: formatResult(pipelineResult),
+            },
+          ],
+        };
+      }
+
+      // Shared agentsweb.org cache — checked after handlers but before the fetcher pipeline
       if (process.env.INTERCEPT_SHARED_CACHE !== "false") {
         const sharedResult = await sharedCacheRead(normalizedUrl);
         if (sharedResult && sharedResult.quality >= 0.3) {
@@ -186,27 +212,6 @@ export function createServer(): McpServer {
             ],
           };
         }
-      }
-
-      const handlerResult = await routeUrl(normalizedUrl, HANDLERS);
-      if (handlerResult) {
-        const pipelineResult = {
-          result: { content: handlerResult.content, source: handlerResult.source, quality: 1.0, timing: handlerResult.timing },
-          attempts: [{ name: handlerResult.source, status: "success" as const, quality: 1.0, timing: handlerResult.timing }],
-        };
-        cache.set(normalizedUrl, pipelineResult);
-        // Contribute to shared cache (fire-and-forget)
-        if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
-          sharedCacheWrite(normalizedUrl, handlerResult.content, handlerResult.source);
-        }
-        return {
-          content: [
-            {
-              type: "text" as const,
-              text: formatResult(pipelineResult),
-            },
-          ],
-        };
       }
 
       const pipelineResult = await runPipeline(normalizedUrl, FETCHERS, {

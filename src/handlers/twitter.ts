@@ -45,7 +45,7 @@ async function tryVxTwitter(user: string, id: string): Promise<TweetData | null>
   try {
     const resp = await fetchWithTimeout(`https://api.vxtwitter.com/${user}/status/${id}`, {}, 8000);
     const ct = resp.headers.get("content-type") ?? "";
-    if (!ct.includes("application/json")) return null;
+    if (!resp.ok || !ct.includes("application/json")) return null;
     const t = await resp.json();
     if (!t.text) return null;
     return {

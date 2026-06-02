@@ -22,7 +22,7 @@ export const wikipediaHandler: Handler = {
       const htmlUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/html/${encodeURIComponent(title)}`;
       const response = await fetchWithTimeout(htmlUrl, {
         headers: {
-          "User-Agent": "intercept-mcp/3.0.0 (https://github.com/bighippoman/intercept-mcp)",
+          "User-Agent": "intercept-mcp/5.5.0 (https://github.com/bighippoman/intercept-mcp)",
           Accept: "text/html",
         },
       });
@@ -43,7 +43,7 @@ export const wikipediaHandler: Handler = {
       const summaryUrl = `https://${lang}.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`;
       const summaryResponse = await fetchWithTimeout(summaryUrl, {
         headers: {
-          "User-Agent": "intercept-mcp/3.0.0 (https://github.com/bighippoman/intercept-mcp)",
+          "User-Agent": "intercept-mcp/5.5.0 (https://github.com/bighippoman/intercept-mcp)",
           Accept: "application/json",
         },
       });
