@@ -12,6 +12,7 @@ import { waybackFetcher } from "./fetchers/wayback.js";
 import { archivePhFetcher } from "./fetchers/archive-ph.js";
 import { googleCacheFetcher } from "./fetchers/google-cache.js";
 import { arquivoFetcher } from "./fetchers/arquivo.js";
+import { commonCrawlFetcher } from "./fetchers/common-crawl.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { markdownEndpointFetcher } from "./fetchers/markdown-endpoint.js";
 import { rawFetcher } from "./fetchers/raw.js";
@@ -55,6 +56,7 @@ const FETCHERS: Fetcher[] = [
   waybackFetcher,
   googleCacheFetcher,
   arquivoFetcher,
+  commonCrawlFetcher,
   codetabsFetcher,
   markdownEndpointFetcher,
   archivePhFetcher,

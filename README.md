@@ -118,6 +118,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 2 | Wayback Machine | Archived version from archive.org |
 | 2 | Google Cache | Google's cached page version |
 | 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
+| 2 | Common Crawl | Petabyte web archive read from Common Crawl's index + S3 — not subject to the origin's rate limits, bot detection, or paywall |
 | 2 | Codetabs | CORS proxy |
 | 3 | Markdown endpoint | Asks the site for a native markdown version (`<path>.md` + `Accept: text/markdown`) |
 | 3 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
