@@ -111,10 +111,10 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 1 | Cloudflare Browser Run | JS/SPA rendering + markdown extraction — also powers [agentsweb.org](https://agentsweb.org) (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback Machine | Archived version from archive.org |
-| 2 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
 | 2 | Google Cache | Google's cached page version |
 | 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
 | 2 | Codetabs | CORS proxy |
+| 3 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
@@ -126,7 +126,7 @@ All fetchers return proper **Markdown** (headings, links, bold, tables, code blo
 
 ### 4. Caching
 
-Results are cached in-memory with TTL (30 min for successes, 5 min for failures). Max 100 entries with LRU eviction. Failed URLs are cached to prevent re-attempting known-dead URLs.
+Results are cached in-memory with TTL (60 min for successes, 5 min for failures). Max 250 entries with LRU eviction. Failed URLs are cached to prevent re-attempting known-dead URLs. All three knobs are configurable via `INTERCEPT_CACHE_TTL_MS`, `INTERCEPT_CACHE_FAILURE_TTL_MS`, and `INTERCEPT_CACHE_SIZE`.
 
 ## Tools
 

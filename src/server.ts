@@ -44,14 +44,16 @@ const HANDLERS: Handler[] = [
   githubHandler,
 ];
 
+// Order matters: runPipeline groups *consecutive* tier-2 fetchers into one
+// parallel batch, so all tier-2 entries must stay contiguous.
 const FETCHERS: Fetcher[] = [
   cloudflareFetcher,
   jinaFetcher,
   waybackFetcher,
-  archivePhFetcher,
   googleCacheFetcher,
   arquivoFetcher,
   codetabsFetcher,
+  archivePhFetcher,
   rawFetcher,
   stealthFetcher,
   rssFetcher,
@@ -104,7 +106,7 @@ export function createServer(): McpServer {
     {
       title: "Fetch URL",
       description:
-        "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos, arXiv papers, and PDFs directly. Falls back to a multi-tier chain: Jina Reader, Wayback Machine, raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Results are cached for the session.",
+        "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos directly. Otherwise checks a shared cache, then falls back through a multi-tier chain: Jina Reader, web archives (Wayback, archive.ph, Arquivo.pt), raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Results are cached for the session.",
       inputSchema: {
         url: z.string().url().describe("The URL to fetch"),
         maxTier: z
