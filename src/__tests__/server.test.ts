@@ -41,12 +41,43 @@ describe("MCP Server Integration", () => {
   });
 
   describe("tools/list", () => {
-    it("lists both fetch and search tools", async () => {
+    it("lists fetch, fetch_batch, research, and search tools", async () => {
       const result = await client.listTools();
       const names = result.tools.map((t) => t.name);
       expect(names).toContain("fetch");
+      expect(names).toContain("fetch_batch");
+      expect(names).toContain("research");
       expect(names).toContain("search");
-      expect(result.tools).toHaveLength(2);
+      expect(result.tools).toHaveLength(4);
+    });
+
+    it("fetch tool exposes an outputSchema with pagination fields", async () => {
+      const result = await client.listTools();
+      const fetchTool = result.tools.find((t) => t.name === "fetch")!;
+      expect(fetchTool.outputSchema).toBeDefined();
+      expect(fetchTool.outputSchema!.properties).toHaveProperty("source");
+      expect(fetchTool.outputSchema!.properties).toHaveProperty("quality");
+      expect(fetchTool.outputSchema!.properties).toHaveProperty("contentLength");
+      expect(fetchTool.outputSchema!.properties).toHaveProperty("truncated");
+      expect(fetchTool.outputSchema!.properties).toHaveProperty("nextStartIndex");
+    });
+
+    it("fetch tool accepts maxLength, startIndex, and noCache inputs", async () => {
+      const result = await client.listTools();
+      const fetchTool = result.tools.find((t) => t.name === "fetch")!;
+      const props = fetchTool.inputSchema.properties as Record<string, unknown>;
+      expect(props).toHaveProperty("maxLength");
+      expect(props).toHaveProperty("startIndex");
+      expect(props).toHaveProperty("noCache");
+    });
+
+    it("search tool accepts site, freshness, and page inputs", async () => {
+      const result = await client.listTools();
+      const searchTool = result.tools.find((t) => t.name === "search")!;
+      const props = searchTool.inputSchema.properties as Record<string, unknown>;
+      expect(props).toHaveProperty("site");
+      expect(props).toHaveProperty("freshness");
+      expect(props).toHaveProperty("page");
     });
 
     it("fetch tool has correct annotations from the protocol", async () => {
@@ -268,6 +299,160 @@ describe("MCP Server Integration", () => {
       } finally {
         fetchSpy.mockRestore();
       }
+    });
+
+    it("truncates content at maxLength and reports pagination in structuredContent", async () => {
+      const longBody = "word ".repeat(5000);
+      const html = `<html><head>
+        <title>Long Page</title>
+        <meta property="og:title" content="Long Page" />
+        <meta property="og:description" content="${longBody}" />
+      </head><body></body></html>`;
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response(html, { status: 200 }))
+      );
+
+      try {
+        const result = await client.callTool({
+          name: "fetch",
+          arguments: { url: "https://truncation-test.example.com/long", maxLength: 500 },
+        });
+
+        const structured = result.structuredContent as {
+          truncated: boolean;
+          nextStartIndex?: number;
+          contentLength: number;
+          returnedLength: number;
+        };
+        expect(structured.truncated).toBe(true);
+        expect(structured.nextStartIndex).toBe(500);
+        expect(structured.contentLength).toBeGreaterThan(500);
+        expect(structured.returnedLength).toBe(500);
+
+        const content = result.content as Array<{ type: string; text: string }>;
+        expect(content[0].text).toContain("Content truncated");
+        expect(content[0].text).toContain("startIndex=500");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("refuses to fetch private addresses", async () => {
+      const result = await client.callTool({
+        name: "fetch",
+        arguments: { url: "http://169.254.169.254/latest/meta-data/" },
+      });
+
+      expect(result.isError).toBe(true);
+      const content = result.content as Array<{ type: string; text: string }>;
+      expect(content[0].text).toContain("Refusing to fetch");
+    });
+  });
+
+  describe("fetch_batch tool", () => {
+    it("fetches multiple URLs and returns per-URL sections", async () => {
+      const html = `<html><head>
+        <title>Batch Page</title>
+        <meta property="og:title" content="Batch Page" />
+        <meta property="og:description" content="A description long enough to pass the quality checks of the extraction pipeline for batch testing purposes here." />
+      </head><body></body></html>`;
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response(html, { status: 200 }))
+      );
+
+      try {
+        const result = await client.callTool({
+          name: "fetch_batch",
+          arguments: {
+            urls: [
+              "https://batch-a.example.com/one",
+              "https://batch-b.example.com/two",
+            ],
+          },
+        });
+
+        const structured = result.structuredContent as {
+          results: Array<{ url: string; ok: boolean; source: string }>;
+        };
+        expect(structured.results).toHaveLength(2);
+
+        const content = result.content as Array<{ type: string; text: string }>;
+        expect(content[0].text).toContain("# Batch fetch");
+        expect(content[0].text).toContain("## https://batch-a.example.com/one");
+        expect(content[0].text).toContain("## https://batch-b.example.com/two");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+  });
+
+  describe("research tool", () => {
+    it("searches and fetches the top results in one call", async () => {
+      const searchResponse = {
+        web: {
+          results: [
+            { title: "Research Result", url: "https://research-target.example.com/article", description: "Snippet" },
+          ],
+        },
+      };
+      const pageHtml = `<html><head>
+        <title>Research Article</title>
+        <meta property="og:title" content="Research Article" />
+        <meta property="og:description" content="The article content that the research tool should fetch and include in its combined output for the agent." />
+      </head><body></body></html>`;
+
+      const originalEnv = { ...process.env };
+      process.env.BRAVE_API_KEY = "test-key";
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+        const url = String(input);
+        if (url.includes("api.search.brave.com")) {
+          return Promise.resolve(new Response(JSON.stringify(searchResponse), { status: 200 }));
+        }
+        return Promise.resolve(new Response(pageHtml, { status: 200 }));
+      });
+
+      try {
+        const result = await client.callTool({
+          name: "research",
+          arguments: { query: "test research query", count: 1 },
+        });
+
+        expect(result.isError).toBeFalsy();
+
+        const structured = result.structuredContent as {
+          query: string;
+          searchSource: string;
+          results: Array<{ title: string; url: string; fetched: boolean }>;
+        };
+        expect(structured.query).toBe("test research query");
+        expect(structured.searchSource).toBe("brave");
+        expect(structured.results).toHaveLength(1);
+
+        const content = result.content as Array<{ type: string; text: string }>;
+        expect(content[0].text).toContain("# Research: test research query");
+        expect(content[0].text).toContain("Research Result");
+      } finally {
+        fetchSpy.mockRestore();
+        process.env = originalEnv;
+      }
+    });
+  });
+
+  describe("resources", () => {
+    it("lists the recent-fetches resource", async () => {
+      const result = await client.listResources();
+      const uris = result.resources.map((r) => r.uri);
+      expect(uris).toContain("intercept://session/recent");
+    });
+
+    it("reads the recent-fetches resource as markdown", async () => {
+      const result = await client.readResource({ uri: "intercept://session/recent" });
+      const content = result.contents[0] as { mimeType?: string; text?: string };
+      expect(content.mimeType).toBe("text/markdown");
+      expect(content.text).toContain("# Recently fetched URLs");
     });
   });
 });

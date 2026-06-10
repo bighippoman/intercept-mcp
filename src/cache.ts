@@ -72,6 +72,20 @@ export class LRUCache {
     return this.cache.size;
   }
 
+  /** Successfully cached entries, most recently used first. */
+  list(): Array<{ url: string; source: string; quality: number }> {
+    const out: Array<{ url: string; source: string; quality: number }> = [];
+    for (const [url, entry] of this.cache) {
+      if (entry.value === FAILURE_SENTINEL || this.isExpired(entry)) continue;
+      out.push({
+        url,
+        source: entry.value.result.source,
+        quality: entry.value.result.quality,
+      });
+    }
+    return out.reverse();
+  }
+
   private isExpired(entry: CacheEntryMeta): boolean {
     return entry.expiresAt !== null && Date.now() > entry.expiresAt;
   }

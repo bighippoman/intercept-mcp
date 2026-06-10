@@ -7,12 +7,12 @@
     "url": "https://github.com/bighippoman/intercept-mcp",
     "source": "github"
   },
-  "version": "3.0.8",
+  "version": "5.6.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "intercept-mcp",
-      "version": "3.0.8",
+      "version": "5.6.0",
       "transport": {
         "type": "stdio"
       },
@@ -20,7 +20,19 @@
       "environmentVariables": [
         {
           "name": "BRAVE_API_KEY",
-          "description": "Brave Search API key for the search tool (free tier: 2,000 queries/month). Not needed for the fetch tool.",
+          "description": "Brave Search API key for the search tool. Not needed for the fetch tool.",
+          "isRequired": false,
+          "isSecret": true
+        },
+        {
+          "name": "SEARXNG_URL",
+          "description": "Self-hosted SearXNG instance URL for the search tool.",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "GitHub token to raise API rate limits for the GitHub issue/PR/release handler.",
           "isRequired": false,
           "isSecret": true
         }

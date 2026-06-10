@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import type { Handler, HandlerResult } from "../types.js";
-import { fetchTranscript } from "youtube-transcript";
+
+const TRANSCRIPT_CHAR_LIMIT = 15_000;
 
 function extractVideoId(url: string): string | null {
   const longMatch = url.match(/youtube\.com\/watch\?.*v=([a-zA-Z0-9_-]+)/);
@@ -17,13 +18,28 @@ interface VideoDetails {
   viewCount: string;
 }
 
-function parsePlayerResponse(html: string): VideoDetails | null {
+interface CaptionTrack {
+  baseUrl: string;
+  languageCode: string;
+  kind?: string; // "asr" = auto-generated
+}
+
+interface PlayerData {
+  details: VideoDetails;
+  captionTracks: CaptionTrack[];
+}
+
+function parsePlayerResponse(html: string): PlayerData | null {
   const match = html.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{[\s\S]*?\});/);
   if (!match) return null;
 
   try {
     const data = JSON.parse(match[1]);
-    return (data.videoDetails as VideoDetails | undefined) ?? null;
+    const details = data.videoDetails as VideoDetails | undefined;
+    if (!details) return null;
+    const captionTracks =
+      (data.captions?.playerCaptionsTracklistRenderer?.captionTracks as CaptionTrack[] | undefined) ?? [];
+    return { details, captionTracks };
   } catch {
     return null;
   }
@@ -35,12 +51,55 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-async function getTranscript(videoId: string): Promise<string | null> {
+/** Prefer human-made English captions, then any English, then any human-made, then whatever exists. */
+function pickCaptionTrack(tracks: CaptionTrack[]): CaptionTrack | null {
+  const usable = tracks.filter((t) => t.baseUrl);
+  if (usable.length === 0) return null;
+  const english = usable.filter((t) => t.languageCode?.startsWith("en"));
+  return (
+    english.find((t) => t.kind !== "asr") ??
+    english[0] ??
+    usable.find((t) => t.kind !== "asr") ??
+    usable[0]
+  );
+}
+
+function decodeEntities(text: string): string {
+  return text
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n))); // double-encoded (&amp;#39;)
+}
+
+/**
+ * Fetch the transcript directly from the caption track URL embedded in the
+ * watch page. The timedtext endpoint returns XML: <text start dur>...</text>.
+ */
+async function getTranscript(tracks: CaptionTrack[]): Promise<string | null> {
+  const track = pickCaptionTrack(tracks);
+  if (!track) return null;
+
   try {
-    const segments = await fetchTranscript(videoId);
-    if (!segments || segments.length === 0) return null;
-    const text = segments.map((s: { text: string }) => s.text).join(" ");
-    return text.length > 15_000 ? text.slice(0, 15_000) + "\n\n[Transcript truncated]" : text;
+    const response = await fetchWithTimeout(track.baseUrl, {}, 8_000);
+    if (!response.ok) return null;
+    const xml = await response.text();
+
+    const segments: string[] = [];
+    for (const m of xml.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)) {
+      const cleaned = decodeEntities(m[1]).replace(/<[^>]+>/g, "").trim();
+      if (cleaned) segments.push(cleaned);
+    }
+    if (segments.length === 0) return null;
+
+    const text = segments.join(" ").replace(/\s+/g, " ");
+    return text.length > TRANSCRIPT_CHAR_LIMIT
+      ? text.slice(0, TRANSCRIPT_CHAR_LIMIT) + "\n\n[Transcript truncated]"
+      : text;
   } catch {
     return null;
   }
@@ -67,8 +126,9 @@ export const youtubeHandler: Handler = {
       });
       if (!response.ok) return null;
       const html = await response.text();
-      const details = parsePlayerResponse(html);
-      if (!details) return null;
+      const parsed = parsePlayerResponse(html);
+      if (!parsed) return null;
+      const { details, captionTracks } = parsed;
 
       const parts: string[] = [];
       parts.push(`# ${details.title}`);
@@ -83,7 +143,7 @@ export const youtubeHandler: Handler = {
         parts.push("");
       }
 
-      const transcript = await getTranscript(videoId);
+      const transcript = await getTranscript(captionTracks);
       if (transcript) {
         parts.push("## Transcript");
         parts.push(transcript);

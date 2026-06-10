@@ -82,6 +82,11 @@ Known URL patterns are routed to dedicated handlers before the fallback pipeline
 | `*.pdf` | PDF | Extracted text (text-layer PDFs only) |
 | `*.wikipedia.org/wiki/*` | Wikipedia | Clean article content via Wikimedia REST API |
 | `github.com/{owner}/{repo}` | GitHub | Raw README.md content |
+| `github.com/{o}/{r}/blob/{ref}/{path}` | GitHub | Raw file content, code-fenced by language |
+| `github.com/{o}/{r}/issues/{n}`, `/pull/{n}` | GitHub | Issue/PR title, state, body, diff stats, comments (via GitHub API) |
+| `github.com/{o}/{r}/releases/tag/{t}`, `/releases/latest` | GitHub | Release notes (via GitHub API) |
+
+The GitHub API endpoints work unauthenticated (60 requests/hour). Set `GITHUB_TOKEN` to raise the limit.
 
 ### 2. Shared cache (agentsweb.org)
 
@@ -136,6 +141,29 @@ Fetch a URL and return its content as clean markdown.
 
 - `url` (string, required) — URL to fetch
 - `maxTier` (number, optional, 1-5) — Stop at this tier for speed-sensitive cases
+- `maxLength` (number, optional, default 50000) — Maximum characters to return
+- `startIndex` (number, optional, default 0) — Character offset for paginating long content
+- `noCache` (boolean, optional) — Skip session and shared caches and fetch live
+
+Long pages are truncated at `maxLength` with a notice telling the agent which `startIndex` continues the content. Structured output reports `source`, `quality`, `contentLength`, `truncated`, `nextStartIndex`, and `cacheAgeSeconds` so agents can branch on them programmatically.
+
+### `fetch_batch`
+
+Fetch up to 10 URLs in parallel, each through the same handler/fallback chain.
+
+- `urls` (string[], required, 1-10) — URLs to fetch
+- `maxTier`, `noCache` — as in `fetch`
+- `maxLength` (number, optional, default 20000) — Per-URL character budget
+
+### `research`
+
+Search the web and fetch the top results in one call — replaces a search followed by several fetches.
+
+- `query` (string, required) — Search query
+- `count` (number, optional, 1-5, default 3) — Results to fetch
+- `maxLength` (number, optional, default 20000) — Per-result character budget
+- `site` (string, optional) — Restrict to a domain
+- `freshness` (string, optional) — `day`, `week`, `month`, or `year`
 
 ### `search`
 
@@ -143,8 +171,17 @@ Search the web and return results.
 
 - `query` (string, required) — Search query
 - `count` (number, optional, 1-20, default 5) — Number of results
+- `site` (string, optional) — Restrict results to a domain
+- `freshness` (string, optional) — `day`, `week`, `month`, or `year`
+- `page` (number, optional, 1-10) — Results page for pagination
 
-Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG if `SEARXNG_URL` is set, then DuckDuckGo as an unreliable last resort.
+Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG if `SEARXNG_URL` is set, then DuckDuckGo as an unreliable last resort. `freshness` and `page` are ignored by the DuckDuckGo fallback.
+
+## Resources
+
+### `intercept://session/recent`
+
+Markdown list of URLs fetched and cached in this session, most recent first. Re-fetching any of them is instant.
 
 ## Prompts
 
@@ -167,6 +204,7 @@ Fetch a URL and extract the key points from the content.
 |----------|----------|-------------|
 | `BRAVE_API_KEY` | No | [Brave Search API](https://brave.com/search/api/) key for search |
 | `SEARXNG_URL` | No | Self-hosted SearXNG instance URL (recommended) |
+| `GITHUB_TOKEN` | No | GitHub token raising API rate limits for the issue/PR/release handler |
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
@@ -222,6 +260,10 @@ Incoming URLs are automatically cleaned:
 - Cleans AMP artifacts
 - Preserves functional params (`ref`, `format`, `page`, `offset`, `limit`)
 
+## SSRF protection
+
+Agents pass URLs taken from untrusted web content, so the fetch tools refuse anything pointing at local or internal infrastructure: loopback and private IPv4/IPv6 ranges, link-local addresses (including the `169.254.169.254` cloud metadata endpoint), CGNAT, multicast/reserved ranges, and local hostnames (`localhost`, `*.local`, `*.internal`, `*.home.arpa`). Literal IPs are checked, including alternate notations (decimal, hex) normalized by the URL parser; DNS is not resolved, so public hostnames pointing at private IPs are not caught.
+
 ## Content quality detection
 
 Each fetcher result is scored for quality. Automatic fail on:
@@ -233,5 +275,5 @@ Each fetcher result is scored for quality. Automatic fail on:
 
 ## Requirements
 
-- Node.js >= 18
+- Node.js >= 20
 - No API keys required for basic use

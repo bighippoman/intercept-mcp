@@ -62,6 +62,7 @@ export async function sharedCacheRead(url: string): Promise<FetchResult | null> 
       source: `agentsweb (trust:${data.trust_level}, via:${data.source})`,
       quality: Math.min(1, 0.5 + data.trust_level * 0.1), // trust 1 = 0.6, trust 5 = 1.0
       timing: Date.now() - start,
+      ageSeconds: typeof data.age_seconds === "number" ? data.age_seconds : undefined,
     };
   } catch {
     return null;

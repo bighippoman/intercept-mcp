@@ -9,6 +9,10 @@ export async function runPipeline(
   options: PipelineOptions = {}
 ): Promise<PipelineResult> {
   const { maxTier = 5, qualityThreshold = DEFAULT_QUALITY_THRESHOLD } = options;
+  // Tiers must run in ascending order, and the parallel-tier grouping below
+  // only batches *consecutive* entries — a stable sort guarantees both
+  // regardless of how callers ordered the array.
+  fetchers = [...fetchers].sort((a, b) => a.tier - b.tier);
   const attempts: AttemptRecord[] = [];
   let bestFallback: FetchResult | null = null;
 

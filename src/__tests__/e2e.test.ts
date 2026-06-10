@@ -74,8 +74,8 @@ describe("rawFetcher (real network)", () => {
     expect(result!.quality).toBeGreaterThan(0.3);
   }, 15_000);
 
-  it("fetches httpbin.org/html", async () => {
-    const result = await rawFetcher.fetch("https://httpbin.org/html");
+  it("fetches example.com", async () => {
+    const result = await rawFetcher.fetch("https://example.com/");
     expect(result).not.toBeNull();
     expect(result!.content.length).toBeGreaterThan(100);
   }, 15_000);
@@ -712,9 +712,9 @@ describe("prompts via MCP protocol (real server)", () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe("tool listing via MCP protocol (real server)", () => {
-  it("returns exactly 2 tools", async () => {
+  it("returns exactly 4 tools", async () => {
     const result = await client.listTools();
-    expect(result.tools.length).toBe(2);
+    expect(result.tools.length).toBe(4);
   });
 
   it("fetch tool has all required fields", async () => {
