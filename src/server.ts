@@ -13,6 +13,7 @@ import { archivePhFetcher } from "./fetchers/archive-ph.js";
 import { googleCacheFetcher } from "./fetchers/google-cache.js";
 import { arquivoFetcher } from "./fetchers/arquivo.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
+import { markdownEndpointFetcher } from "./fetchers/markdown-endpoint.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { stealthFetcher } from "./fetchers/stealth.js";
 import { rssFetcher } from "./fetchers/rss.js";
@@ -55,6 +56,7 @@ const FETCHERS: Fetcher[] = [
   googleCacheFetcher,
   arquivoFetcher,
   codetabsFetcher,
+  markdownEndpointFetcher,
   archivePhFetcher,
   rawFetcher,
   stealthFetcher,

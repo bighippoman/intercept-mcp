@@ -119,6 +119,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 2 | Google Cache | Google's cached page version |
 | 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
 | 2 | Codetabs | CORS proxy |
+| 3 | Markdown endpoint | Asks the site for a native markdown version (`<path>.md` + `Accept: text/markdown`) |
 | 3 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
