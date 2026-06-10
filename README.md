@@ -219,6 +219,7 @@ Fetch a URL and extract the key points from the content.
 | `INTERCEPT_CACHE_FAILURE_TTL_MS` | No | In-memory cache TTL for failed fetches in ms (default `300000` = 5 min) |
 | `INTERCEPT_CACHE_SIZE` | No | Max in-memory cache entries (default `250`) |
 | `HTTPS_PROXY` / `HTTP_PROXY` | No | Standard proxy passthrough — routes all outbound fetches (including stealth) through the proxy. Honors `NO_PROXY`. |
+| `INTERCEPT_PROXIES` | No | Comma/space-separated list of HTTP(S) proxies to rotate across, with automatic retry through the next proxy on a blocked response. Takes precedence over `HTTPS_PROXY`. |
 
 **Search:** Has a DuckDuckGo fallback but it's rate-limited and unreliable. For production use, self-host [SearXNG](https://docs.searxng.org/) and set `SEARXNG_URL` (see below), or get a [Brave Search API key](https://brave.com/search/api/).
 
@@ -253,6 +254,16 @@ HTTPS_PROXY=http://user:pass@proxy.example.com:8080 npx intercept-mcp
 ```
 
 This works with any HTTP(S) proxy — a self-hosted Squid, a Tailscale exit node, a $5 VPS running [3proxy](https://github.com/3proxy/3proxy), or commercial residential proxies (Bright Data, Oxylabs, etc.). The stealth fetcher and `got-scraping` calls also pick this up automatically.
+
+### Proxy rotation (INTERCEPT_PROXIES)
+
+A single proxy still presents a single IP, which can itself get flagged under load. Set `INTERCEPT_PROXIES` to a comma- or space-separated list and intercept-mcp round-robins across them, automatically retrying through the next proxy when a request comes back blocked (HTTP 403, 429, 451, 503) or errors:
+
+```bash
+INTERCEPT_PROXIES="http://user:pass@p1.example.com:8080,http://user:pass@p2.example.com:8080,http://p3.example.com:8080" npx intercept-mcp
+```
+
+Requests spread across the list, and a blocked response is retried through a different egress (up to 3 attempts) before giving up — so a handful of cheap proxies, or a rotating residential endpoint listed multiple times, behave like a pool. `INTERCEPT_PROXIES` takes precedence over `HTTPS_PROXY`, applies per request (so the stealth and archive.ph `got-scraping` calls rotate too), and accepts HTTP(S) proxies. Invalid entries are ignored.
 
 ## Self-hosting SearXNG
 
