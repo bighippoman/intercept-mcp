@@ -5,6 +5,7 @@ import { runPipeline, formatResult } from "./pipeline.js";
 import { routeUrl } from "./router.js";
 import { LRUCache } from "./cache.js";
 import { blockedUrlReason } from "./url-guard.js";
+import { isImageUrl, fetchImage, type ImageResult } from "./image-fetch.js";
 import { sliceWithNotice, DEFAULT_MAX_LENGTH, DEFAULT_BATCH_MAX_LENGTH, type ContentSlice } from "./truncate.js";
 import { cloudflareFetcher } from "./fetchers/cloudflare.js";
 import { jinaFetcher } from "./fetchers/jina.js";
@@ -99,11 +100,14 @@ function envInt(name: string, fallback: number): number {
 interface FetchOptions {
   maxTier?: number;
   noCache?: boolean;
+  /** Return direct image URLs as an image content block (default true). */
+  allowImage?: boolean;
 }
 
 interface FetchOutcome {
   ok: boolean;
   pipelineResult: PipelineResult;
+  image?: ImageResult;
 }
 
 function failureOutcome(content: string, attemptName?: string): FetchOutcome {
@@ -126,11 +130,29 @@ async function performFetch(
   normalizedUrl: string,
   options: FetchOptions = {},
 ): Promise<FetchOutcome> {
-  const { maxTier = 5, noCache = false } = options;
+  const { maxTier = 5, noCache = false, allowImage = true } = options;
 
   const blocked = blockedUrlReason(normalizedUrl);
   if (blocked) {
     return failureOutcome(`Refusing to fetch ${normalizedUrl}: ${blocked}. Private, local, and reserved addresses are not fetchable.`, "url-guard");
+  }
+
+  // Direct image URLs have no extractable text — hand the image to the agent's
+  // vision model instead. Bypasses the text pipeline and cache (base64 is heavy).
+  if (allowImage && isImageUrl(normalizedUrl)) {
+    const image = await fetchImage(normalizedUrl);
+    if (image) {
+      const note = `Image fetched from ${normalizedUrl} (${image.mimeType}, ${Math.round(image.bytes / 1024)} KB). Rendered as an image block for vision.`;
+      return {
+        ok: true,
+        image,
+        pipelineResult: {
+          result: { content: note, source: "image", quality: 1, timing: 0 },
+          attempts: [{ name: "image", status: "success" as const, quality: 1, timing: 0 }],
+        },
+      };
+    }
+    // Not a usable image (HTML error page, oversized, unsupported) — fall through.
   }
 
   if (!noCache) {
@@ -292,6 +314,8 @@ export function createServer(): McpServer {
     truncated: z.boolean(),
     nextStartIndex: z.number().optional().describe("Pass as startIndex to fetch the next chunk"),
     cacheAgeSeconds: z.number().optional().describe("Age of the content when served from the shared cache"),
+    mimeType: z.string().optional().describe("Set when the URL is an image returned as an image block"),
+    bytes: z.number().optional().describe("Image size in bytes, when an image was returned"),
   };
 
   server.registerTool(
@@ -299,7 +323,7 @@ export function createServer(): McpServer {
     {
       title: "Fetch URL",
       description:
-        "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos/files/issues/PRs/releases directly. Otherwise checks a shared cache, then falls back through a multi-tier chain: Jina Reader, web archives (Wayback, archive.ph, Arquivo.pt), raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Long pages are truncated at maxLength characters — paginate with startIndex. Results are cached for the session; pass noCache to force a live fetch.",
+        "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos/files/issues/PRs/releases directly. Direct image URLs (png/jpeg/gif/webp) are returned as an image block for vision. Otherwise checks a shared cache, then falls back through a multi-tier chain: Jina Reader, web archives (Wayback, archive.ph, Arquivo.pt), raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Long pages are truncated at maxLength characters — paginate with startIndex. Results are cached for the session; pass noCache to force a live fetch.",
       inputSchema: {
         url: z.string().url().describe("The URL to fetch"),
         maxTier: z
@@ -343,6 +367,27 @@ export function createServer(): McpServer {
         return {
           isError: true,
           content: [{ type: "text" as const, text: formatResult(outcome.pipelineResult) }],
+        };
+      }
+
+      if (outcome.image) {
+        const { result } = outcome.pipelineResult;
+        return {
+          structuredContent: {
+            url: normalizedUrl,
+            source: result.source,
+            quality: result.quality,
+            timing: result.timing,
+            contentLength: 0,
+            returnedLength: 0,
+            truncated: false,
+            mimeType: outcome.image.mimeType,
+            bytes: outcome.image.bytes,
+          },
+          content: [
+            { type: "image" as const, data: outcome.image.data, mimeType: outcome.image.mimeType },
+            { type: "text" as const, text: result.content },
+          ],
         };
       }
 
@@ -405,7 +450,7 @@ export function createServer(): McpServer {
       const normalized = [...new Set(urls.map(normalizeUrl))];
 
       const outcomes = await Promise.all(
-        normalized.map((u) => performFetch(cache, u, { maxTier, noCache }))
+        normalized.map((u) => performFetch(cache, u, { maxTier, noCache, allowImage: false }))
       );
 
       const sections: string[] = [];
@@ -502,7 +547,7 @@ export function createServer(): McpServer {
       const perUrlLength = maxLength ?? DEFAULT_BATCH_MAX_LENGTH;
       const top = searchResult.results.slice(0, count);
       const outcomes = await Promise.all(
-        top.map((r) => performFetch(cache, normalizeUrl(r.url), {}))
+        top.map((r) => performFetch(cache, normalizeUrl(r.url), { allowImage: false }))
       );
 
       const sections: string[] = [`# Research: ${query}`, `search source: ${searchResult.source}`, ""];

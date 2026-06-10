@@ -338,6 +338,32 @@ describe("MCP Server Integration", () => {
       }
     });
 
+    it("returns a direct image URL as an image content block", async () => {
+      const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0, 1, 2, 3]);
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(png, { status: 200, headers: { "content-type": "image/png" } })
+      );
+
+      try {
+        const result = await client.callTool({
+          name: "fetch",
+          arguments: { url: "https://example.com/diagram.png" },
+        });
+
+        const content = result.content as Array<{ type: string; data?: string; mimeType?: string; text?: string }>;
+        const image = content.find((c) => c.type === "image");
+        expect(image).toBeDefined();
+        expect(image!.mimeType).toBe("image/png");
+        expect(image!.data).toBe(Buffer.from(png).toString("base64"));
+
+        const structured = result.structuredContent as { source: string; mimeType?: string; bytes?: number };
+        expect(structured.source).toBe("image");
+        expect(structured.mimeType).toBe("image/png");
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
     it("refuses to fetch private addresses", async () => {
       const result = await client.callTool({
         name: "fetch",

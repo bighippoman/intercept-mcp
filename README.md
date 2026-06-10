@@ -149,6 +149,8 @@ Fetch a URL and return its content as clean markdown.
 
 Long pages are truncated at `maxLength` with a notice telling the agent which `startIndex` continues the content. Structured output reports `source`, `quality`, `contentLength`, `truncated`, `nextStartIndex`, and `cacheAgeSeconds` so agents can branch on them programmatically.
 
+Direct image URLs (`.png`, `.jpg`, `.gif`, `.webp`, up to 5 MB) are returned as an MCP **image block** instead of text, so the agent's own vision model can read charts, diagrams, screenshots, and scanned documents. The structured output reports `source: "image"`, `mimeType`, and `bytes`.
+
 ### `fetch_batch`
 
 Fetch up to 10 URLs in parallel, each through the same handler/fallback chain.
