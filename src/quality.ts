@@ -1,45 +1,12 @@
-const CAPTCHA_PATTERNS = [
-  /captcha/i,
-  /cf-challenge/i,
-  /g-recaptcha/i,
-  /recaptcha/i,
-  /hcaptcha/i,
-];
-
-const LOGIN_WALL_PATTERNS = [
-  /sign in to continue/i,
-  /log in to continue/i,
-  /create an account/i,
-  /subscribe to read/i,
-  /subscribe to continue/i,
-  /sign up to read/i,
-  /register to continue/i,
-];
-
-const BLOCK_PATTERNS = [
-  /checking your browser/i,
-  /ray id:/i,
-  /403 forbidden/i,
-  /access denied/i,
-  /401 unauthorized/i,
-];
+import { detectBlock } from "./classify.js";
 
 export function scoreContent(content: string): number {
   if (content.length < 200) return 0;
 
-  // Only check structural patterns in the first 500 chars to avoid false positives
-  // on articles that discuss auth, CAPTCHAs, or HTTP errors
-  const head = content.slice(0, 500);
-
-  for (const pattern of CAPTCHA_PATTERNS) {
-    if (pattern.test(head)) return 0;
-  }
-  for (const pattern of LOGIN_WALL_PATTERNS) {
-    if (pattern.test(head)) return 0;
-  }
-  for (const pattern of BLOCK_PATTERNS) {
-    if (pattern.test(head)) return 0;
-  }
+  // Anti-bot challenges, JS shells, paywalls, and rate-limit pages are not
+  // usable content even with a 200 status — score them 0 so the pipeline
+  // never returns or caches them.
+  if (detectBlock(content)) return 0;
 
   let score = 1.0;
 

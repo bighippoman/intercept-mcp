@@ -16,6 +16,8 @@ export interface Fetcher {
 export interface PipelineResult {
   result: FetchResult;
   attempts: AttemptRecord[];
+  /** Actionable explanation when the page was blocked (challenge, paywall, etc.). */
+  diagnosis?: string;
 }
 
 export interface AttemptRecord {
