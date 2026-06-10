@@ -10,13 +10,13 @@ import { cloudflareFetcher } from "./fetchers/cloudflare.js";
 import { jinaFetcher } from "./fetchers/jina.js";
 import { waybackFetcher } from "./fetchers/wayback.js";
 import { archivePhFetcher } from "./fetchers/archive-ph.js";
-import { googleCacheFetcher } from "./fetchers/google-cache.js";
 import { arquivoFetcher } from "./fetchers/arquivo.js";
 import { commonCrawlFetcher } from "./fetchers/common-crawl.js";
 import { codetabsFetcher } from "./fetchers/codetabs.js";
 import { markdownEndpointFetcher } from "./fetchers/markdown-endpoint.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { stealthFetcher } from "./fetchers/stealth.js";
+import { flaresolverrFetcher } from "./fetchers/flaresolverr.js";
 import { rssFetcher } from "./fetchers/rss.js";
 import { crossrefFetcher } from "./fetchers/crossref.js";
 import { semanticScholarFetcher } from "./fetchers/semantic-scholar.js";
@@ -54,7 +54,6 @@ const FETCHERS: Fetcher[] = [
   cloudflareFetcher,
   jinaFetcher,
   waybackFetcher,
-  googleCacheFetcher,
   arquivoFetcher,
   commonCrawlFetcher,
   codetabsFetcher,
@@ -62,6 +61,7 @@ const FETCHERS: Fetcher[] = [
   archivePhFetcher,
   rawFetcher,
   stealthFetcher,
+  flaresolverrFetcher,
   rssFetcher,
   crossrefFetcher,
   semanticScholarFetcher,

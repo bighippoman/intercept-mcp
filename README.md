@@ -116,7 +116,6 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 1 | Cloudflare Browser Run | JS/SPA rendering + markdown extraction — also powers [agentsweb.org](https://agentsweb.org) (optional, needs API token) |
 | 1 | Jina Reader | Clean markdown extraction service |
 | 2 | Wayback Machine | Archived version from archive.org |
-| 2 | Google Cache | Google's cached page version |
 | 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
 | 2 | Common Crawl | Petabyte web archive read from Common Crawl's index + S3 — not subject to the origin's rate limits, bot detection, or paywall |
 | 2 | Codetabs | CORS proxy |
@@ -124,6 +123,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 3 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
+| 3 | FlareSolverr | Real-browser challenge solver for Cloudflare/DDoS-Guard (opt-in, needs a FlareSolverr instance) |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
@@ -210,6 +210,7 @@ Fetch a URL and extract the key points from the content.
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
+| `FLARESOLVERR_URL` | No | URL of a [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) instance (e.g. `http://localhost:8191`) to solve Cloudflare/DDoS-Guard challenges |
 | `INTERCEPT_SHARED_CACHE` | No | Set to `false` to disable the agentsweb.org shared cache |
 | `INTERCEPT_CACHE_READ_ONLY` | No | Set to `true` to consume but never contribute to the shared cache |
 | `INTERCEPT_CACHE_TTL_MS` | No | In-memory cache TTL for successful fetches in ms (default `3600000` = 60 min) |
@@ -228,6 +229,18 @@ Fetch a URL and extract the key points from the content.
 This fetcher runs at tier 3 after the regular raw fetch. If the raw fetch gets blocked (CAPTCHA, Cloudflare challenge, 403), the stealth fetcher retries with browser impersonation.
 
 **This may violate the terms of service of some websites.** The authors of intercept-mcp take no responsibility for how this feature is used. It is disabled by default and must be explicitly opted into.
+
+### Challenge solving (FLARESOLVERR_URL)
+
+The stealth fetcher impersonates a browser's TLS fingerprint, but it can't *execute* a JavaScript challenge — so sites protected by a Cloudflare "Checking your browser" / DDoS-Guard interstitial still block it. [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) runs a real headless browser that solves the challenge and returns the page HTML.
+
+Run it (Docker):
+
+```bash
+docker run -d -p 8191:8191 ghcr.io/flaresolverr/flaresolverr:latest
+```
+
+Then set `FLARESOLVERR_URL=http://localhost:8191`. It runs at tier 3 as a last resort after the raw and stealth fetchers, and only when this variable is set. Solving a challenge can take 30–60s, so it's the slowest fetcher — but it recovers pages nothing else can.
 
 ### Bring-your-own proxy (HTTPS_PROXY)
 
