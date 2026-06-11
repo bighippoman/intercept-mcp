@@ -124,6 +124,7 @@ If no handler matches (or the handler returns nothing), the URL enters the multi
 | 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
 | 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
 | 3 | FlareSolverr | Real-browser challenge solver for Cloudflare/DDoS-Guard (opt-in, needs a FlareSolverr instance) |
+| 3 | Web unlocker | Commercial unlocker API — residential rotation + rendering + CAPTCHA (opt-in, BYO key, paid per request) |
 | 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
 | 5 | OG Meta | Open Graph tags (guaranteed fallback) |
 
@@ -235,6 +236,7 @@ Fetch a URL and extract the key points from the content.
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
 | `FLARESOLVERR_URL` | No | URL of a [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) instance (e.g. `http://localhost:8191`) to solve Cloudflare/DDoS-Guard challenges |
+| `WEB_UNLOCKER_URL` | No | GET template (with a `{url}` placeholder and your API key) for a commercial web-unlocker like ScrapingBee/ScraperAPI/ZenRows — the paid last resort for the hardest sites |
 | `INTERCEPT_SHARED_CACHE` | No | Set to `false` to disable the agentsweb.org shared cache |
 | `INTERCEPT_CACHE_READ_ONLY` | No | Set to `true` to consume but never contribute to the shared cache |
 | `INTERCEPT_CACHE_TTL_MS` | No | In-memory cache TTL for successful fetches in ms (default `3600000` = 60 min) |
@@ -266,6 +268,21 @@ docker run -d -p 8191:8191 ghcr.io/flaresolverr/flaresolverr:latest
 ```
 
 Then set `FLARESOLVERR_URL=http://localhost:8191`. It runs at tier 3 as a last resort after the raw and stealth fetchers, and only when this variable is set. Solving a challenge can take 30–60s, so it's the slowest fetcher — but it recovers pages nothing else can.
+
+### Commercial web unlocker (WEB_UNLOCKER_URL)
+
+For the hardest targets — sites that need residential IP rotation *and* real-browser rendering *and* CAPTCHA handling together — a commercial unlocker is the pragmatic answer. intercept-mcp supports any unlocker that exposes a "GET this URL, return the HTML" endpoint, via a template with a `{url}` placeholder that holds your API key:
+
+```bash
+# ScrapingBee
+WEB_UNLOCKER_URL='https://app.scrapingbee.com/api/v1/?api_key=KEY&render_js=true&url={url}'
+# ScraperAPI
+WEB_UNLOCKER_URL='https://api.scraperapi.com/?api_key=KEY&render=true&url={url}'
+# ZenRows
+WEB_UNLOCKER_URL='https://api.zenrows.com/v1/?apikey=KEY&js_render=true&url={url}'
+```
+
+intercept substitutes the (URL-encoded) target for `{url}` and converts the returned HTML (or JSON wrapping it) to markdown. It runs at tier 3 as a paid last resort after the free fetchers, only when this variable is set — and your credentials in the template are only ever sent to the unlocker, never to the target. Bright Data's proxy-based Web Unlocker is just an authenticated proxy, so use `HTTPS_PROXY` / `INTERCEPT_PROXIES` for that instead. **This bills per request.**
 
 ### Bring-your-own proxy (HTTPS_PROXY)
 

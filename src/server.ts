@@ -22,6 +22,7 @@ import { markdownEndpointFetcher } from "./fetchers/markdown-endpoint.js";
 import { rawFetcher } from "./fetchers/raw.js";
 import { stealthFetcher } from "./fetchers/stealth.js";
 import { flaresolverrFetcher } from "./fetchers/flaresolverr.js";
+import { webUnlockerFetcher } from "./fetchers/web-unlocker.js";
 import { rssFetcher } from "./fetchers/rss.js";
 import { crossrefFetcher } from "./fetchers/crossref.js";
 import { semanticScholarFetcher } from "./fetchers/semantic-scholar.js";
@@ -67,6 +68,7 @@ const FETCHERS: Fetcher[] = [
   rawFetcher,
   stealthFetcher,
   flaresolverrFetcher,
+  webUnlockerFetcher,
   rssFetcher,
   crossrefFetcher,
   semanticScholarFetcher,
