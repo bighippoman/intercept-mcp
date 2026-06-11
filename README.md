@@ -209,6 +209,7 @@ Fetch a URL and extract the key points from the content.
 | `BRAVE_API_KEY` | No | [Brave Search API](https://brave.com/search/api/) key for search |
 | `SEARXNG_URL` | No | Self-hosted SearXNG instance URL (recommended) |
 | `GITHUB_TOKEN` | No | GitHub token raising API rate limits for the issue/PR/release handler |
+| `INTERCEPT_AUTH` | No | JSON map of domain → headers/cookies, to fetch content you're logged in to (see [Per-domain authentication](#per-domain-authentication-intercept_auth)) |
 | `CF_API_TOKEN` | No | Cloudflare API token with "Browser Rendering - Edit" permission |
 | `CF_ACCOUNT_ID` | No | Cloudflare account ID (required if `CF_API_TOKEN` is set) |
 | `USE_STEALTH_FETCH` | No | Set to `true` to enable stealth fetcher (see warning below) |
@@ -264,6 +265,28 @@ INTERCEPT_PROXIES="http://user:pass@p1.example.com:8080,http://user:pass@p2.exam
 ```
 
 Requests spread across the list, and a blocked response is retried through a different egress (up to 3 attempts) before giving up — so a handful of cheap proxies, or a rotating residential endpoint listed multiple times, behave like a pool. `INTERCEPT_PROXIES` takes precedence over `HTTPS_PROXY`, applies per request (so the stealth and archive.ph `got-scraping` calls rotate too), and accepts HTTP(S) proxies. Invalid entries are ignored.
+
+## Per-domain authentication (INTERCEPT_AUTH)
+
+Most of the web is behind a login. `INTERCEPT_AUTH` lets you attach your own headers or cookies to requests for a specific origin, so the fetch tools can read content you're legitimately signed in to — a paid subscription, a private dashboard, an intranet, an authenticated API.
+
+It's a JSON object mapping a domain to a header map. A domain also matches its subdomains:
+
+```bash
+INTERCEPT_AUTH='{
+  "nytimes.com": { "Cookie": "nyt-s=...; nyt-a=..." },
+  "api.acme.com": { "Authorization": "Bearer eyJ..." }
+}' npx intercept-mcp
+```
+
+To get a cookie: open the site logged-in, open DevTools → Network, copy the `Cookie` request header from any request to that domain.
+
+### Security model — read this before using it
+
+- **Credentials only ever go to the configured origin.** Headers are keyed on the *actual host being contacted*. When intercept fetches a page through Jina, a web archive, a CORS proxy, FlareSolverr, or the shared cache, those intermediaries connect to a *different* host, so your cookie/token is **never** sent to them — only a direct fetch of the origin carries it.
+- **Authenticated responses never touch the shared cache.** When a request matches an `INTERCEPT_AUTH` entry, intercept does not read from or write to the public [agentsweb.org](https://agentsweb.org) cache for that URL — so your private/paid content is never published, and you always get *your* authenticated view rather than a stranger's anonymous copy. (The in-process session cache still applies.)
+- **Treat the value as a secret.** It contains live session tokens. Environment variables are visible to the process and its children and may be captured in shell history or process listings — prefer a secrets manager or a non-committed env file, and never commit it. Cookies expire, so you'll periodically need to refresh them.
+- **You are responsible for authorized use.** Only supply credentials for accounts you own or are permitted to use, and respect each site's terms of service. intercept simply forwards the headers you provide.
 
 ## Self-hosting SearXNG
 

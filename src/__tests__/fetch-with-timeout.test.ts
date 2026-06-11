@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchWithTimeout, getProxyUrl, __resetProxyStateForTests } from "../fetch-with-timeout.js";
+import { __resetAuthForTests } from "../auth.js";
 
 const originalEnv = { ...process.env };
 
@@ -84,6 +85,46 @@ describe("fetch-with-timeout proxy rotation", () => {
     process.env.INTERCEPT_PROXIES = "http://p1.test, http://p2.test";
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("ECONNREFUSED"));
     await expect(fetchWithTimeout("https://example.com")).rejects.toThrow();
+  });
+});
+
+describe("fetchWithTimeout per-domain auth", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    __resetAuthForTests();
+    __resetProxyStateForTests();
+    delete process.env.INTERCEPT_PROXIES;
+    delete process.env.INTERCEPT_AUTH;
+  });
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    __resetAuthForTests();
+    __resetProxyStateForTests();
+  });
+
+  it("attaches auth headers when contacting the configured host", async () => {
+    process.env.INTERCEPT_AUTH = JSON.stringify({ "example.com": { Cookie: "session=secret" } });
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok());
+    await fetchWithTimeout("https://example.com/article");
+    const init = spy.mock.calls[0][1] as { headers?: HeadersInit };
+    expect(new Headers(init.headers).get("Cookie")).toBe("session=secret");
+  });
+
+  it("does NOT attach auth headers when contacting a different host", async () => {
+    process.env.INTERCEPT_AUTH = JSON.stringify({ "example.com": { Cookie: "session=secret" } });
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok());
+    // intermediary (e.g. Jina) fetching the same logical URL must not receive it
+    await fetchWithTimeout("https://r.jina.ai/https://example.com/article");
+    const init = spy.mock.calls[0][1] as { headers?: HeadersInit };
+    expect(new Headers(init.headers).get("Cookie")).toBeNull();
+  });
+
+  it("does not overwrite a header the caller already set", async () => {
+    process.env.INTERCEPT_AUTH = JSON.stringify({ "example.com": { Authorization: "Bearer from-config" } });
+    const spy = vi.spyOn(globalThis, "fetch").mockResolvedValue(ok());
+    await fetchWithTimeout("https://example.com/", { headers: { Authorization: "Bearer caller" } });
+    const init = spy.mock.calls[0][1] as { headers?: HeadersInit };
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer caller");
   });
 });
 

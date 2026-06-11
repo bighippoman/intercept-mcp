@@ -5,6 +5,7 @@ import { runPipeline, formatResult } from "./pipeline.js";
 import { routeUrl } from "./router.js";
 import { LRUCache } from "./cache.js";
 import { blockedUrlReason } from "./url-guard.js";
+import { hasAuthFor } from "./auth.js";
 import { isImageUrl, fetchImage, type ImageResult } from "./image-fetch.js";
 import { sliceWithNotice, DEFAULT_MAX_LENGTH, DEFAULT_BATCH_MAX_LENGTH, type ContentSlice } from "./truncate.js";
 import { cloudflareFetcher } from "./fetchers/cloudflare.js";
@@ -176,6 +177,13 @@ async function performFetch(
     }
   }
 
+  // Per-domain credentials are in play: the response is the user's private,
+  // authenticated view, so it must never be read from or written to the public
+  // shared cache (don't publish private content; don't serve an anonymous copy
+  // in its place). The in-process session cache is fine.
+  const authed = hasAuthFor(normalizedUrl);
+  const useSharedCache = !authed && process.env.INTERCEPT_SHARED_CACHE !== "false";
+
   // Specialized handlers first — they produce structured, high-quality output
   const handlerResult = await routeUrl(normalizedUrl, HANDLERS);
   if (handlerResult) {
@@ -185,14 +193,14 @@ async function performFetch(
     };
     cache.set(normalizedUrl, pipelineResult);
     // Contribute to shared cache (fire-and-forget)
-    if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true" && process.env.INTERCEPT_SHARED_CACHE !== "false") {
+    if (useSharedCache && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
       sharedCacheWrite(normalizedUrl, handlerResult.content, handlerResult.source);
     }
     return { ok: true, pipelineResult };
   }
 
   // Shared agentsweb.org cache — checked after handlers but before the fetcher pipeline
-  if (!noCache && process.env.INTERCEPT_SHARED_CACHE !== "false") {
+  if (!noCache && useSharedCache) {
     const sharedResult = await sharedCacheRead(normalizedUrl);
     if (sharedResult && sharedResult.quality >= 0.3) {
       const pipelineResult: PipelineResult = {
@@ -233,7 +241,7 @@ async function performFetch(
   cache.set(normalizedUrl, pipelineResult);
 
   // Contribute to shared cache (fire-and-forget)
-  if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true" && process.env.INTERCEPT_SHARED_CACHE !== "false") {
+  if (useSharedCache && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
     sharedCacheWrite(normalizedUrl, pipelineResult.result.content, pipelineResult.result.source);
   }
 

@@ -364,6 +364,44 @@ describe("MCP Server Integration", () => {
       }
     });
 
+    it("never sends an authed fetch to the public shared cache", async () => {
+      const { __resetAuthForTests } = await import("../auth.js");
+      const html = `<html><head>
+        <title>Private</title>
+        <meta property="og:title" content="Private Dashboard" />
+        <meta property="og:description" content="Authenticated content that must never be written to or read from the shared agentsweb cache because it is the user's private view." />
+      </head><body></body></html>`;
+
+      const originalEnv = { ...process.env };
+      process.env.INTERCEPT_AUTH = JSON.stringify({ "authed-target.example.com": { Cookie: "session=secret" } });
+      __resetAuthForTests();
+
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+        Promise.resolve(new Response(html, { status: 200 }))
+      );
+
+      try {
+        await client.callTool({
+          name: "fetch",
+          arguments: { url: "https://authed-target.example.com/dashboard" },
+        });
+
+        const hostOf = (u: string) => { try { return new URL(u).hostname; } catch { return ""; } };
+        // No request — read or write — should have hit the shared cache host.
+        expect(fetchSpy.mock.calls.some((c) => hostOf(String(c[0])) === "agentsweb.org")).toBe(false);
+        // Any intermediary (e.g. Jina) must not have received the credential.
+        for (const c of fetchSpy.mock.calls) {
+          if (hostOf(String(c[0])) !== "authed-target.example.com") {
+            expect(new Headers((c[1] as { headers?: HeadersInit }).headers).get("Cookie")).toBeNull();
+          }
+        }
+      } finally {
+        fetchSpy.mockRestore();
+        process.env = originalEnv;
+        __resetAuthForTests();
+      }
+    });
+
     it("refuses to fetch private addresses", async () => {
       const result = await client.callTool({
         name: "fetch",

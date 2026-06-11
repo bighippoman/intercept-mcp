@@ -1,3 +1,5 @@
+import { authHeadersFor } from "./auth.js";
+
 const DEFAULT_TIMEOUT = 10_000;
 
 // HTTP statuses that typically mean "this egress IP is blocked" — worth
@@ -6,7 +8,6 @@ const BLOCK_STATUSES = new Set([403, 429, 451, 503]);
 const MAX_ROTATION_ATTEMPTS = 3;
 
 type FetchInit = RequestInit & { dispatcher?: unknown };
-
 // If any standard proxy env var is set, route all fetch() through it.
 // EnvHttpProxyAgent honors HTTPS_PROXY / HTTP_PROXY / NO_PROXY (and lowercase).
 // Dynamic import avoids undici overriding the global fetch (which breaks
@@ -91,6 +92,21 @@ export function getProxyUrl(): string | undefined {
   );
 }
 
+/**
+ * Attach per-domain auth headers for `url`'s host. Keyed on the actual host
+ * contacted, so credentials never leak to proxies/archives/Jina. Existing
+ * caller headers win on conflict (e.g. a handler's own Authorization).
+ */
+function withAuth(url: string, init: RequestInit): RequestInit {
+  const auth = authHeadersFor(url);
+  if (Object.keys(auth).length === 0) return init;
+  const headers = new Headers(init.headers as HeadersInit | undefined);
+  for (const [name, value] of Object.entries(auth)) {
+    if (!headers.has(name)) headers.set(name, value);
+  }
+  return { ...init, headers };
+}
+
 async function timedFetch(url: string, init: FetchInit, ms: number): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), ms);
@@ -106,6 +122,8 @@ export async function fetchWithTimeout(
   init: RequestInit = {},
   ms = DEFAULT_TIMEOUT,
 ): Promise<Response> {
+  init = withAuth(url, init);
+
   const list = loadProxyList();
   if (list.length === 0) {
     // No rotation configured — behave exactly as before (global agent applies
