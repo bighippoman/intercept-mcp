@@ -1,5 +1,5 @@
 import { fetchWithTimeout } from "../fetch-with-timeout.js";
-import type { SearchResponse } from "../types.js";
+import type { SearchResponse, SearchOptions } from "../types.js";
 
 interface SearXNGResult {
   title: string;
@@ -15,11 +15,13 @@ export async function searxngSearch(
   query: string,
   instanceUrl: string,
   count: number,
+  options: SearchOptions = {},
 ): Promise<SearchResponse | null> {
   const start = Date.now();
   try {
     const baseUrl = instanceUrl.replace(/\/$/, "");
-    const url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&pageno=1`;
+    let url = `${baseUrl}/search?q=${encodeURIComponent(query)}&format=json&pageno=${options.page ?? 1}`;
+    if (options.freshness) url += `&time_range=${options.freshness}`;
     const response = await fetchWithTimeout(url, {
       headers: { Accept: "application/json" },
     });

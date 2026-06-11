@@ -106,6 +106,43 @@ describe("runPipeline", () => {
     const result = await runPipeline("https://example.com", fetchers);
     expect(result.result.source).toBe("archive.ph");
   });
+
+  it("never returns a detected anti-bot challenge as best-effort content", async () => {
+    const fetchers = [
+      makeFetcher("raw", 1, { content: "Just a moment... Enable JavaScript and cookies to continue. " + "x".repeat(300), source: "raw", quality: 0, timing: 50 }),
+      makeFetcher("og-meta", 5, { content: "Could not retrieve content. Visit the URL directly. " + "y".repeat(200), source: "og-meta", quality: 0.05, timing: 30 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    // The challenge must not win; the og-meta stub does.
+    expect(result.result.source).toBe("og-meta");
+    expect(result.diagnosis).toBeDefined();
+    expect(result.diagnosis).toContain("anti-bot challenge");
+  });
+
+  it("attaches a diagnosis on total failure when a block was seen", async () => {
+    const fetchers = [
+      makeFetcher("raw", 3, { content: "Sign in to continue reading this article. " + "z".repeat(300), source: "raw", quality: 0, timing: 50 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.result.source).toBe("none");
+    expect(result.diagnosis).toContain("paywall");
+  });
+
+  it("marks blocked attempts in the attempt trail", async () => {
+    const fetchers = [
+      makeFetcher("raw", 3, { content: "Just a moment... " + "x".repeat(300), source: "raw", quality: 0, timing: 50 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.attempts[0].reason).toContain("blocked: challenge");
+  });
+
+  it("adds no diagnosis for ordinary low-quality misses", async () => {
+    const fetchers = [
+      makeFetcher("thin", 3, { content: "tiny", source: "thin", quality: 0.1, timing: 50 }),
+    ];
+    const result = await runPipeline("https://example.com", fetchers);
+    expect(result.diagnosis).toBeUndefined();
+  });
 });
 
 describe("formatResult", () => {

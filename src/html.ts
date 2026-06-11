@@ -3,6 +3,7 @@ import { parseHTML } from "linkedom";
 import TurndownService from "turndown";
 import { gfm } from "@truto/turndown-plugin-gfm";
 import { convertHtmlToMarkdown } from "./html-to-md.js";
+import { extractEmbeddedContent } from "./embedded-json.js";
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -43,6 +44,20 @@ export function htmlToText(html: string): string {
 export function htmlToMarkdown(html: string): string {
   if (!html) return "";
 
+  const dom = domToMarkdown(html);
+
+  // SPA shells and paywalls hide their real content in embedded JSON
+  // (hydration state, JSON-LD) that the rendered DOM doesn't expose. Prefer
+  // it when the DOM extraction came up thin or substantially shorter.
+  const embedded = extractEmbeddedContent(html);
+  if (embedded && embedded.length > Math.max(200, dom.length * 1.2)) {
+    return embedded;
+  }
+
+  return dom;
+}
+
+function domToMarkdown(html: string): string {
   // Try Readability first — it returns article.content as clean HTML
   try {
     const { document } = parseHTML(html);

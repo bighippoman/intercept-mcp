@@ -1,4 +1,5 @@
 import type { Fetcher, FetchResult, PipelineResult, PipelineOptions, AttemptRecord } from "./types.js";
+import { detectBlock, buildDiagnosis, type BlockReason } from "./classify.js";
 
 const DEFAULT_QUALITY_THRESHOLD = 0.3;
 const PARALLEL_TIER = 2;
@@ -9,8 +10,13 @@ export async function runPipeline(
   options: PipelineOptions = {}
 ): Promise<PipelineResult> {
   const { maxTier = 5, qualityThreshold = DEFAULT_QUALITY_THRESHOLD } = options;
+  // Tiers must run in ascending order, and the parallel-tier grouping below
+  // only batches *consecutive* entries — a stable sort guarantees both
+  // regardless of how callers ordered the array.
+  fetchers = [...fetchers].sort((a, b) => a.tier - b.tier);
   const attempts: AttemptRecord[] = [];
   let bestFallback: FetchResult | null = null;
+  const blockReasons = new Set<BlockReason>();
 
   let i = 0;
   while (i < fetchers.length) {
@@ -52,8 +58,11 @@ export async function runPipeline(
         }
 
         if (result.quality < qualityThreshold) {
-          attempts.push({ name: f.name, status: "failed", quality: result.quality, timing: result.timing, reason: `quality ${result.quality} < ${qualityThreshold}` });
-          if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
+          const reason = detectBlock(result.content);
+          attempts.push({ name: f.name, status: "failed", quality: result.quality, timing: result.timing, reason: reason ? `blocked: ${reason}` : `quality ${result.quality} < ${qualityThreshold}` });
+          // A detected block is misleading, not "best effort" — never let it win.
+          if (reason) blockReasons.add(reason);
+          else if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
           continue;
         }
 
@@ -94,8 +103,10 @@ export async function runPipeline(
         return { result, attempts };
       }
 
-      if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
-      attempts.push({ name: fetcher.name, status: "failed", quality: result.quality, timing: result.timing, reason: `quality ${result.quality} < ${qualityThreshold}` });
+      const reason = detectBlock(result.content);
+      if (reason) blockReasons.add(reason);
+      else if (!bestFallback || result.quality > bestFallback.quality) bestFallback = result;
+      attempts.push({ name: fetcher.name, status: "failed", quality: result.quality, timing: result.timing, reason: reason ? `blocked: ${reason}` : `quality ${result.quality} < ${qualityThreshold}` });
     } catch (error) {
       const message = error instanceof Error ? error.message : "unknown error";
       attempts.push({ name: fetcher.name, status: "failed", reason: message });
@@ -104,18 +115,21 @@ export async function runPipeline(
     i++;
   }
 
+  const diagnosis = buildDiagnosis(blockReasons);
+
   if (bestFallback) {
-    return { result: bestFallback, attempts };
+    return { result: bestFallback, attempts, diagnosis };
   }
 
   return {
     result: { content: `Failed to fetch content from ${url}. All ${attempts.length} strategies failed.`, source: "none", quality: 0, timing: 0 },
     attempts,
+    diagnosis,
   };
 }
 
 export function formatResult(pipelineResult: PipelineResult): string {
-  const { result, attempts } = pipelineResult;
+  const { result, attempts, diagnosis } = pipelineResult;
 
   const tried = attempts
     .map((a) => {
@@ -124,7 +138,9 @@ export function formatResult(pipelineResult: PipelineResult): string {
     })
     .join(" → ");
 
-  return `${result.content}\n\n---\nsource: ${result.source} | ${formatTiming(result.timing)} | ${tried}`;
+  let out = `${result.content}\n\n---\nsource: ${result.source} | ${formatTiming(result.timing)} | ${tried}`;
+  if (diagnosis) out += `\n\n⚠️ ${diagnosis}`;
+  return out;
 }
 
 function formatTiming(ms: number): string {

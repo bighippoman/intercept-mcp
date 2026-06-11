@@ -3,6 +3,8 @@ export interface FetchResult {
   source: string;
   quality: number;
   timing: number;
+  /** Age of the content when served from a cache, in seconds. */
+  ageSeconds?: number;
 }
 
 export interface Fetcher {
@@ -14,6 +16,8 @@ export interface Fetcher {
 export interface PipelineResult {
   result: FetchResult;
   attempts: AttemptRecord[];
+  /** Actionable explanation when the page was blocked (challenge, paywall, etc.). */
+  diagnosis?: string;
 }
 
 export interface AttemptRecord {
@@ -51,4 +55,11 @@ export interface SearchResponse {
   results: SearchResult[];
   source: string;
   timing: number;
+}
+
+export interface SearchOptions {
+  /** Restrict freshness of results. Supported by Brave and SearXNG; ignored by DuckDuckGo. */
+  freshness?: "day" | "week" | "month" | "year";
+  /** 1-based results page. Supported by Brave and SearXNG; ignored by DuckDuckGo. */
+  page?: number;
 }
