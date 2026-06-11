@@ -181,6 +181,27 @@ Search the web and return results.
 
 Uses Brave Search API if `BRAVE_API_KEY` is set, then SearXNG if `SEARXNG_URL` is set, then DuckDuckGo as an unreliable last resort. `freshness` and `page` are ignored by the DuckDuckGo fallback.
 
+### `extract`
+
+Extract specific values from a page as JSON instead of markdown prose — for when you need particular data, not the whole page. Honors per-domain auth and proxies.
+
+- `url` (string, required) — The URL to extract from
+- `selectors` (object, optional) — Map of field name → CSS selector. Each value is either a selector string (returns the first match's text) or `{ selector, attr?, all? }` — `attr` extracts an attribute (e.g. `href`), `all: true` returns every match as an array.
+- `tables` (boolean, optional) — Convert every HTML table to an array of row objects (defaults to true when no `selectors` are given).
+
+```json
+{
+  "url": "https://shop.example.com/item",
+  "selectors": {
+    "title": "h1",
+    "price": ".price",
+    "images": { "selector": "img.gallery", "attr": "src", "all": true }
+  }
+}
+```
+
+Returns the extracted `fields` and/or `tables` as structured output.
+
 ## Resources
 
 ### `intercept://session/recent`

@@ -41,14 +41,15 @@ describe("MCP Server Integration", () => {
   });
 
   describe("tools/list", () => {
-    it("lists fetch, fetch_batch, research, and search tools", async () => {
+    it("lists fetch, fetch_batch, research, search, and extract tools", async () => {
       const result = await client.listTools();
       const names = result.tools.map((t) => t.name);
       expect(names).toContain("fetch");
       expect(names).toContain("fetch_batch");
       expect(names).toContain("research");
       expect(names).toContain("search");
-      expect(result.tools).toHaveLength(4);
+      expect(names).toContain("extract");
+      expect(result.tools).toHaveLength(5);
     });
 
     it("fetch tool exposes an outputSchema with pagination fields", async () => {
@@ -501,6 +502,51 @@ describe("MCP Server Integration", () => {
       } finally {
         fetchSpy.mockRestore();
         process.env = originalEnv;
+      }
+    });
+  });
+
+  describe("extract tool", () => {
+    it("returns selector fields and tables as structured content", async () => {
+      const html = `<html><body>
+        <h1>Gadget</h1><span class="price">$9.99</span>
+        <table><thead><tr><th>K</th><th>V</th></tr></thead><tbody><tr><td>color</td><td>blue</td></tr></tbody></table>
+      </body></html>`;
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(html, { status: 200 }));
+
+      try {
+        const result = await client.callTool({
+          name: "extract",
+          arguments: { url: "https://shop.example.com/item", selectors: { title: "h1", price: ".price" }, tables: true },
+        });
+
+        const structured = result.structuredContent as {
+          url: string;
+          fields: Record<string, unknown>;
+          tables: Array<Array<Record<string, string>>>;
+        };
+        expect(structured.fields.title).toBe("Gadget");
+        expect(structured.fields.price).toBe("$9.99");
+        expect(structured.tables[0]).toEqual([{ K: "color", V: "blue" }]);
+      } finally {
+        fetchSpy.mockRestore();
+      }
+    });
+
+    it("reports an error for a blocked page", async () => {
+      const challenge = "<html><head><title>Just a moment...</title></head><body>Enable JavaScript and cookies to continue</body></html>";
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(challenge, { status: 200 }));
+
+      try {
+        const result = await client.callTool({
+          name: "extract",
+          arguments: { url: "https://blocked.example.com/x", selectors: { t: "h1" } },
+        });
+        expect(result.isError).toBe(true);
+        const text = (result.content as Array<{ text: string }>)[0].text;
+        expect(text).toContain("anti-bot challenge");
+      } finally {
+        fetchSpy.mockRestore();
       }
     });
   });

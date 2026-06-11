@@ -6,6 +6,9 @@ import { routeUrl } from "./router.js";
 import { LRUCache } from "./cache.js";
 import { blockedUrlReason } from "./url-guard.js";
 import { hasAuthFor } from "./auth.js";
+import { fetchWithTimeout } from "./fetch-with-timeout.js";
+import { extractFromHtml } from "./extract.js";
+import { detectBlock, buildDiagnosis } from "./classify.js";
 import { isImageUrl, fetchImage, type ImageResult } from "./image-fetch.js";
 import { sliceWithNotice, DEFAULT_MAX_LENGTH, DEFAULT_BATCH_MAX_LENGTH, type ContentSlice } from "./truncate.js";
 import { cloudflareFetcher } from "./fetchers/cloudflare.js";
@@ -294,6 +297,34 @@ async function runSearch(query: string, count: number, options: SearchOptions & 
   }
 
   return searchResult;
+}
+
+const BROWSER_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+};
+
+/** Fetch a page's raw HTML for structured extraction (honors SSRF guard, auth, proxy). */
+async function fetchPageHtml(url: string): Promise<{ html: string } | { error: string }> {
+  const blocked = blockedUrlReason(url);
+  if (blocked) return { error: `Refusing to fetch ${url}: ${blocked}.` };
+
+  try {
+    const response = await fetchWithTimeout(url, { headers: BROWSER_HEADERS, redirect: "follow" }, 15_000);
+    if (!response.ok) return { error: `Could not fetch ${url} — HTTP ${response.status}.` };
+    const html = await response.text();
+    if (!html) return { error: `Could not fetch ${url} — empty response.` };
+
+    const reason = detectBlock(html);
+    if (reason) {
+      const diagnosis = buildDiagnosis([reason]);
+      return { error: `Could not extract from ${url}. ${diagnosis ?? "The page was blocked."}` };
+    }
+    return { html };
+  } catch (error) {
+    return { error: `Could not fetch ${url} — ${error instanceof Error ? error.message : "network error"}.` };
+  }
 }
 
 const freshnessSchema = z
@@ -654,6 +685,67 @@ export function createServer(): McpServer {
             text: formatSearchResult(searchResult),
           },
         ],
+      };
+    }
+  );
+
+  server.registerTool(
+    "extract",
+    {
+      title: "Extract structured data",
+      description:
+        "Extract specific values from a web page as JSON instead of markdown prose. Provide CSS selectors to pull named fields (text or an attribute, first match or all), and/or set tables:true to convert every HTML table to arrays of row objects. Use this when you need particular data (prices, lists, specs, tabular data) rather than the whole page. Honors per-domain auth and proxies.",
+      inputSchema: {
+        url: z.string().url().describe("The URL to extract from"),
+        selectors: z
+          .record(
+            z.string(),
+            z.union([
+              z.string(),
+              z.object({
+                selector: z.string(),
+                attr: z.string().optional().describe("Extract this attribute (e.g. href, src) instead of text"),
+                all: z.boolean().optional().describe("Return every match as an array instead of the first"),
+              }),
+            ])
+          )
+          .optional()
+          .describe('Map of field name to CSS selector, e.g. {"title":"h1","price":".price","links":{"selector":"a.item","attr":"href","all":true}}'),
+        tables: z.boolean().optional().describe("Extract all HTML tables as arrays of row objects (default true when no selectors are given)"),
+      },
+      outputSchema: {
+        url: z.string(),
+        fields: z.record(z.string(), z.union([z.string(), z.array(z.string()), z.null()])).optional(),
+        tables: z.array(z.array(z.record(z.string(), z.string()))).optional(),
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ url, selectors, tables }) => {
+      const normalizedUrl = normalizeUrl(url);
+      const page = await fetchPageHtml(normalizedUrl);
+      if ("error" in page) {
+        return { isError: true, content: [{ type: "text" as const, text: page.error }] };
+      }
+
+      const wantTables = tables ?? !selectors;
+      const result = extractFromHtml(page.html, selectors, wantTables);
+
+      const structured: { url: string; fields?: typeof result.fields; tables?: typeof result.tables } = { url: normalizedUrl };
+      if (result.fields) structured.fields = result.fields;
+      if (result.tables) structured.tables = result.tables;
+
+      const tableCount = result.tables?.length ?? 0;
+      const fieldCount = result.fields ? Object.keys(result.fields).length : 0;
+      const summary = `# Extracted from ${normalizedUrl}\n\n${fieldCount} field(s), ${tableCount} table(s).\n\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+
+      return {
+        structuredContent: structured,
+        content: [{ type: "text" as const, text: summary }],
       };
     }
   );
