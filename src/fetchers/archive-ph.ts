@@ -3,6 +3,10 @@ import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
 
+const TIMEMAP_TIMEOUT = 4_000;
+const SNAPSHOT_DELAY = 1_000;
+const SNAPSHOT_TIMEOUT = 8_000;
+
 /**
  * Parse a Memento timemap response to extract the most recent snapshot URL.
  * Format: `<URL>; rel="memento"; datetime="..."` per line.
@@ -20,6 +24,19 @@ function parseLatestMementoUrl(timemap: string): string | null {
   return latest;
 }
 
+async function findSnapshotUrl(candidate: string): Promise<string | null> {
+  try {
+    const timemapUrl = `https://archive.ph/timemap/${candidate}`;
+    const resp = await fetchWithTimeout(timemapUrl, {}, TIMEMAP_TIMEOUT);
+    if (!resp.ok) return null;
+    const body = await resp.text();
+    if (body.includes("TimeMap does not exists")) return null;
+    return parseLatestMementoUrl(body);
+  } catch {
+    return null;
+  }
+}
+
 export const archivePhFetcher: Fetcher = {
   name: "archive-ph",
   tier: 3,
@@ -35,22 +52,12 @@ export const archivePhFetcher: Fetcher = {
         urls.push(url.replace(`://${parsed.hostname}`, `://www.${parsed.hostname}`));
       }
 
-      let snapshotUrl: string | null = null;
-
-      for (const candidate of urls) {
-        const timemapUrl = `https://archive.ph/timemap/${candidate}`;
-        const resp = await fetchWithTimeout(timemapUrl, {}, 8_000);
-        if (!resp.ok) continue;
-        const body = await resp.text();
-        if (body.includes("TimeMap does not exists")) continue;
-        snapshotUrl = parseLatestMementoUrl(body);
-        if (snapshotUrl) break;
-      }
+      const snapshotUrl = (await Promise.all(urls.map(findSnapshotUrl))).find((u): u is string => Boolean(u)) ?? null;
 
       if (!snapshotUrl) return null;
 
       // Delay to avoid archive.ph rate limiting (triggers captcha)
-      await new Promise((r) => setTimeout(r, 3_000));
+      await new Promise((r) => setTimeout(r, SNAPSHOT_DELAY));
 
       // Use got-scraping to bypass archive.ph's Cloudflare captcha
       // (stealth TLS fingerprint impersonation works against their challenge)
@@ -63,7 +70,7 @@ export const archivePhFetcher: Fetcher = {
           browsers: ["chrome"],
           operatingSystems: ["macos", "windows"],
         },
-        timeout: { request: 15_000 },
+        timeout: { request: SNAPSHOT_TIMEOUT },
         followRedirect: true,
         maxRedirects: 5,
         ...(proxyUrl ? { proxyUrl } : {}),

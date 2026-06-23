@@ -13,14 +13,14 @@ export async function runPipeline(
   // Tiers must run in ascending order, and the parallel-tier grouping below
   // only batches *consecutive* entries — a stable sort guarantees both
   // regardless of how callers ordered the array.
-  fetchers = [...fetchers].sort((a, b) => a.tier - b.tier);
+  const orderedFetchers = [...fetchers].sort((a, b) => a.tier - b.tier);
   const attempts: AttemptRecord[] = [];
   let bestFallback: FetchResult | null = null;
   const blockReasons = new Set<BlockReason>();
 
   let i = 0;
-  while (i < fetchers.length) {
-    const fetcher = fetchers[i];
+  while (i < orderedFetchers.length) {
+    const fetcher = orderedFetchers[i];
 
     if (fetcher.tier > maxTier) {
       i++;
@@ -30,8 +30,8 @@ export async function runPipeline(
     // Collect all fetchers at the parallel tier and run them concurrently
     if (fetcher.tier === PARALLEL_TIER) {
       const tierFetchers: Fetcher[] = [];
-      while (i < fetchers.length && fetchers[i].tier === PARALLEL_TIER) {
-        if (fetchers[i].tier <= maxTier) tierFetchers.push(fetchers[i]);
+      while (i < orderedFetchers.length && orderedFetchers[i].tier === PARALLEL_TIER) {
+        if (orderedFetchers[i].tier <= maxTier) tierFetchers.push(orderedFetchers[i]);
         i++;
       }
 

@@ -25,7 +25,7 @@ export const redditFetcher: Fetcher = {
     try {
       const apiUrl = `https://www.reddit.com/search.json?q=url:${encodeURIComponent(url)}&sort=relevance&limit=5`;
       const response = await fetchWithTimeout(apiUrl, {
-        headers: { "User-Agent": "intercept-mcp/5.5.0" },
+        headers: { "User-Agent": "intercept-mcp" },
       });
       if (!response.ok) return null;
       const data = (await response.json()) as RedditResponse;

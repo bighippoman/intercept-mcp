@@ -17,7 +17,7 @@ export const ogMetaFetcher: Fetcher = {
     try {
       const response = await fetchWithTimeout(url, {
         headers: {
-          "User-Agent": "Mozilla/5.0 (compatible; intercept-mcp/5.5.0)",
+          "User-Agent": "Mozilla/5.0 (compatible; intercept-mcp)",
           Accept: "text/html",
         },
       });

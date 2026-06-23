@@ -621,7 +621,7 @@ export function createServer(): McpServer {
     {
       title: "Web Search",
       description:
-        "Search the web and return results. Uses Brave Search API if BRAVE_API_KEY is set, otherwise falls back to SearXNG. Supports domain filtering (site), freshness, and pagination (page).",
+        "Search the web and return results. Uses Brave Search API if BRAVE_API_KEY is set, otherwise falls back to SearXNG and then DuckDuckGo. Supports domain filtering (site), freshness, and pagination (page).",
       inputSchema: {
         query: z.string().describe("Search query"),
         count: z

@@ -7,6 +7,13 @@ import { homedir } from "node:os";
 
 const CACHE_URL = "https://agentsweb.org";
 const TIMEOUT = 2_500;
+const INDIRECT_CACHE_SOURCES = new Set([
+  "crossref",
+  "hackernews",
+  "og-meta",
+  "reddit",
+  "semantic-scholar",
+]);
 
 // Persistent instance ID (anonymous, survives restarts)
 let instanceId: string | null = null;
@@ -39,6 +46,10 @@ interface SharedCacheResponse {
   age_seconds: number;
 }
 
+function isIndirectCacheSource(source: string): boolean {
+  return INDIRECT_CACHE_SOURCES.has(source.trim().toLowerCase());
+}
+
 /**
  * Read from the shared agentsweb.org cache.
  * Returns a FetchResult if cache hit, null if miss.
@@ -56,6 +67,7 @@ export async function sharedCacheRead(url: string): Promise<FetchResult | null> 
 
     const data = (await response.json()) as SharedCacheResponse;
     if (!data.markdown || data.markdown.length < 500) return null;
+    if (isIndirectCacheSource(data.source)) return null;
 
     return {
       content: data.markdown,

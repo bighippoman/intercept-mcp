@@ -97,6 +97,21 @@ describe("runPipeline", () => {
     expect(elapsed).toBeLessThan(200);
   });
 
+  it("runs lower-tier fetchers before higher tiers even when input is unordered", async () => {
+    const tier3 = makeFetcher("tier3", 3, { content: "tier3", source: "tier3", quality: 0.9, timing: 100 });
+    const tier2 = makeFetcher("tier2", 2, { content: "tier2", source: "tier2", quality: 0.8, timing: 100 });
+    const fetchers: Fetcher[] = [
+      makeFetcher("jina", 1, null),
+      tier3,
+      tier2,
+    ];
+
+    const result = await runPipeline("https://example.com", fetchers);
+
+    expect(result.result.source).toBe("tier2");
+    expect(tier3.fetch).not.toHaveBeenCalled();
+  });
+
   it("prefers archive.ph as tiebreaker when both tier 2 have equal quality", async () => {
     const fetchers: Fetcher[] = [
       makeFetcher("jina", 1, null),
