@@ -45,7 +45,7 @@
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@mozilla/readability": "^0.6.0",
     "@truto/turndown-plugin-gfm": "^1.0.2",
-    "duck-duck-scrape": "^2.2.7",
+    "ddg-kit": "^0.1.0",
     "got-scraping": "^4.2.1",
     "linkedom": "^0.18.12",
     "pdf-parse": "^2.4.5",

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Mock the module before importing the function under test
-vi.mock("duck-duck-scrape", () => ({
+vi.mock("ddg-kit", () => ({
   search: vi.fn(),
   SafeSearchType: { MODERATE: 1 },
 }));
@@ -14,7 +14,7 @@ describe("duckduckgoSearch", () => {
   });
 
   it("returns search results", async () => {
-    const { search } = await import("duck-duck-scrape");
+    const { search } = await import("ddg-kit");
     vi.mocked(search).mockResolvedValueOnce({
       results: [
         { title: "Result 1", url: "https://example.com/1", description: "First result" },
@@ -34,7 +34,7 @@ describe("duckduckgoSearch", () => {
   });
 
   it("respects count parameter", async () => {
-    const { search } = await import("duck-duck-scrape");
+    const { search } = await import("ddg-kit");
     vi.mocked(search).mockResolvedValueOnce({
       results: [
         { title: "R1", url: "https://example.com/1", description: "D1" },
@@ -51,7 +51,7 @@ describe("duckduckgoSearch", () => {
   });
 
   it("returns null on error", async () => {
-    const { search } = await import("duck-duck-scrape");
+    const { search } = await import("ddg-kit");
     vi.mocked(search).mockRejectedValueOnce(new Error("Rate limited"));
 
     const result = await duckduckgoSearch("test", 5);
@@ -59,7 +59,7 @@ describe("duckduckgoSearch", () => {
   });
 
   it("returns null when no results", async () => {
-    const { search } = await import("duck-duck-scrape");
+    const { search } = await import("ddg-kit");
     vi.mocked(search).mockResolvedValueOnce({
       results: [],
       noResults: true,
