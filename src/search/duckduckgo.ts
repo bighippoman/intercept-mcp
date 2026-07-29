@@ -6,7 +6,7 @@ export async function duckduckgoSearch(
 ): Promise<SearchResponse | null> {
   const start = Date.now();
   try {
-    const { search, SafeSearchType } = await import("duck-duck-scrape");
+    const { search, SafeSearchType } = await import("ddg-kit");
     const results = await search(query, { safeSearch: SafeSearchType.MODERATE });
 
     if (!results.results || results.results.length === 0) return null;
