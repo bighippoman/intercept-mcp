@@ -14,7 +14,10 @@ import type { Fetcher, PipelineResult } from "../types.js";
  */
 
 function createTestServer(fetchers: Fetcher[]) {
-  const cache = new LRUCache(10, { ttl: 100, failureTtl: 50 }); // short TTLs for testing
+  // Keep this comfortably above MCP protocol overhead. The expiry test below
+  // waits explicitly, while the other tests need the second request to remain
+  // in the cache even on a loaded CI worker.
+  const cache = new LRUCache(10, { ttl: 1_000, failureTtl: 500 });
   const server = new McpServer({ name: "test", version: "1.0.0" });
 
   server.registerTool(
@@ -141,8 +144,8 @@ describe("Server caching behavior (via protocol)", () => {
       expect(r2.isError).toBe(true);
       expect(fetchFn).toHaveBeenCalledTimes(1); // still only 1 real call
 
-      // Wait for failureTtl to expire (50ms + buffer)
-      await new Promise((r) => setTimeout(r, 70));
+      // Wait for failureTtl to expire (500ms + buffer)
+      await new Promise((r) => setTimeout(r, 550));
 
       // Third call: should retry and succeed
       const r3 = await client.callTool({ name: "fetch", arguments: { url: "https://retry.example.com" } });
@@ -193,8 +196,8 @@ describe("Server caching behavior (via protocol)", () => {
       const r2 = await client.callTool({ name: "fetch", arguments: { url: "https://ttl-test.example.com" } });
       expect((r2.content as Array<{ type: string; text: string }>)[0].text).toContain("CACHED:mock:");
 
-      // Wait for ttl to expire (100ms + buffer)
-      await new Promise((r) => setTimeout(r, 120));
+      // Wait for ttl to expire (1s + buffer)
+      await new Promise((r) => setTimeout(r, 1_050));
 
       // Re-fetch
       const r3 = await client.callTool({ name: "fetch", arguments: { url: "https://ttl-test.example.com" } });
