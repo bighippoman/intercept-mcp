@@ -179,9 +179,10 @@ describe("MCP Server Integration", () => {
     });
   });
 
-  describe("search tool - failure path", () => {
-    it("returns isError with instructional message when no backend available", async () => {
-      // Mock fetch to reject all requests (simulates no Brave key + SearXNG down)
+  describe("search tool - backend fallback", () => {
+    it("uses DuckDuckGo or returns an instructional error when configured backends are unavailable", async () => {
+      // Mock fetch to reject all requests (simulates no Brave key + SearXNG down).
+      // DuckDuckGo may still serve the search through ddg-kit.
       const originalEnv = { ...process.env };
       delete process.env.BRAVE_API_KEY;
       process.env.SEARXNG_URL = "http://localhost:1"; // unreachable
@@ -194,10 +195,13 @@ describe("MCP Server Integration", () => {
           arguments: { query: "test query", count: 3 },
         });
 
-        expect(result.isError).toBe(true);
-        const text = (result.content as Array<{ type: string; text: string }>)[0].text;
-        expect(text).toContain("BRAVE_API_KEY");
-        expect(text).toContain("SEARXNG_URL");
+        if (result.isError) {
+          const text = (result.content as Array<{ type: string; text: string }>)[0].text;
+          expect(text).toContain("BRAVE_API_KEY");
+          expect(text).toContain("SEARXNG_URL");
+        } else {
+          expect((result.structuredContent as { source: string }).source).toBe("duckduckgo");
+        }
       } finally {
         fetchSpy.mockRestore();
         process.env = originalEnv;

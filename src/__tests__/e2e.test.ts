@@ -604,8 +604,8 @@ describe("fetch tool via MCP protocol (real network)", () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe("search tool via MCP protocol (real network)", () => {
-  it("searches via SearXNG and returns results", async () => {
-    // No BRAVE_API_KEY in test env, so falls back to SearXNG
+  it("searches through an available fallback and returns results", async () => {
+    // No BRAVE_API_KEY in test env, so searches SearXNG and then DuckDuckGo.
     const result = await client.callTool({
       name: "search",
       arguments: { query: "TypeScript programming", count: 3 },
@@ -626,7 +626,7 @@ describe("search tool via MCP protocol (real network)", () => {
       timing: number;
     };
     expect(structured.results.length).toBeGreaterThan(0);
-    expect(structured.source).toBe("searxng");
+    expect(["searxng", "duckduckgo"]).toContain(structured.source);
 
     // Also has markdown text content
     const text = getText(result);
