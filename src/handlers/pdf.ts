@@ -26,8 +26,12 @@ export const pdfHandler: Handler = {
       try {
         const { PDFParse } = await import("pdf-parse");
         const parser = new PDFParse({ data: new Uint8Array(buffer) });
-        const result = await parser.getText();
-        text = result.text?.trim() ?? "";
+        try {
+          const result = await parser.getText();
+          text = result.text?.trim() ?? "";
+        } finally {
+          await parser.destroy();
+        }
       } catch {
         // pdf-parse failed -- scanned or corrupt PDF
       }
@@ -36,6 +40,7 @@ export const pdfHandler: Handler = {
         return {
           content: `# PDF: ${url}\n\nCould not extract meaningful text from this PDF. It may be scanned or image-based.\n\nVisit the URL directly to view the document.`,
           source: "pdf",
+          completeness: "unavailable",
           timing: Date.now() - start,
         };
       }

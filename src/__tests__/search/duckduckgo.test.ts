@@ -1,72 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// Mock the module before importing the function under test
-vi.mock("ddg-kit", () => ({
-  search: vi.fn(),
-  SafeSearchType: { MODERATE: 1 },
-}));
-
-import { duckduckgoSearch } from "../../search/duckduckgo.js";
-
-describe("duckduckgoSearch", () => {
-  beforeEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("returns search results", async () => {
-    const { search } = await import("ddg-kit");
-    vi.mocked(search).mockResolvedValueOnce({
-      results: [
-        { title: "Result 1", url: "https://example.com/1", description: "First result" },
-        { title: "Result 2", url: "https://example.com/2", description: "Second result" },
-      ],
-      noResults: false,
-      vqd: "",
-    } as any);
-
-    const result = await duckduckgoSearch("test query", 5);
-    expect(result).not.toBeNull();
-    expect(result!.results).toHaveLength(2);
-    expect(result!.results[0].title).toBe("Result 1");
-    expect(result!.results[0].snippet).toBe("First result");
-    expect(result!.source).toBe("duckduckgo");
-    expect(result!.timing).toBeGreaterThanOrEqual(0);
-  });
-
-  it("respects count parameter", async () => {
-    const { search } = await import("ddg-kit");
-    vi.mocked(search).mockResolvedValueOnce({
-      results: [
-        { title: "R1", url: "https://example.com/1", description: "D1" },
-        { title: "R2", url: "https://example.com/2", description: "D2" },
-        { title: "R3", url: "https://example.com/3", description: "D3" },
-      ],
-      noResults: false,
-      vqd: "",
-    } as any);
-
-    const result = await duckduckgoSearch("test", 2);
-    expect(result).not.toBeNull();
-    expect(result!.results).toHaveLength(2);
-  });
-
-  it("returns null on error", async () => {
-    const { search } = await import("ddg-kit");
-    vi.mocked(search).mockRejectedValueOnce(new Error("Rate limited"));
-
-    const result = await duckduckgoSearch("test", 5);
-    expect(result).toBeNull();
-  });
-
-  it("returns null when no results", async () => {
-    const { search } = await import("ddg-kit");
-    vi.mocked(search).mockResolvedValueOnce({
-      results: [],
-      noResults: true,
-      vqd: "",
-    } as any);
-
-    const result = await duckduckgoSearch("xyznonexistent", 5);
-    expect(result).toBeNull();
-  });
+import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
+import {duckduckgoSearch} from '../../search/duckduckgo.js';
+const html=Array.from({length:3},(_,i)=>`<div class="result"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.org%2F${i+1}">Result ${i+1}</a><div class="result__snippet">Description ${i+1}</div></div>`).join('');
+beforeEach(()=>vi.stubGlobal('fetch',vi.fn(async()=>new Response(html))));
+afterEach(()=>vi.unstubAllGlobals());
+describe('DuckDuckGo HTML fallback',()=>{
+ it('parses titles, redirect destinations and snippets',async()=>{const result=await duckduckgoSearch('test query',5);expect(result?.results).toHaveLength(3);expect(result?.results[0]).toEqual({url:'https://example.org/1',title:'Result 1',snippet:'Description 1'});});
+ it('respects count',async()=>expect((await duckduckgoSearch('test',2))?.results).toHaveLength(2));
+ it('returns unavailable for network failures',async()=>{vi.mocked(fetch).mockRejectedValue(new Error('network'));expect(await duckduckgoSearch('test',5)).toBeNull();});
+ it('rejects challenge pages with no search results',async()=>{vi.mocked(fetch).mockResolvedValue(new Response('Please verify you are human'));expect(await duckduckgoSearch('test',5)).toBeNull();});
 });

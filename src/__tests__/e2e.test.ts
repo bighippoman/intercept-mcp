@@ -349,9 +349,9 @@ describe("runPipeline (real network)", () => {
   it("respects maxTier option", async () => {
     const fetchers: Fetcher[] = [jinaFetcher, rawFetcher, ogMetaFetcher];
     const result = await runPipeline("https://example.com", fetchers, { maxTier: 1 });
-    // Only tier 1 (jina) should be attempted
+    // Only direct tier 1 retrieval should be attempted
     const attemptedNames = result.attempts.map(a => a.name);
-    expect(attemptedNames).not.toContain("raw"); // tier 3
+    expect(attemptedNames).not.toContain("jina"); // tier 2
     expect(attemptedNames).not.toContain("og-meta"); // tier 5
   }, 15_000);
 
@@ -448,14 +448,14 @@ describe("normalizeUrl with real-world patterns", () => {
       .toBe("https://example.com/page?page=2&limit=10");
   });
 
-  it("upgrades HTTP to HTTPS", () => {
+  it("preserves explicit HTTP identity", () => {
     expect(normalizeUrl("http://example.com/page"))
-      .toBe("https://example.com/page");
+      .toBe("http://example.com/page");
   });
 
-  it("strips trailing slash", () => {
+  it("preserves meaningful trailing slashes", () => {
     expect(normalizeUrl("https://example.com/page/"))
-      .toBe("https://example.com/page");
+      .toBe("https://example.com/page/");
   });
 
   it("keeps root slash", () => {
@@ -855,10 +855,10 @@ describe("scoreContent edge cases", () => {
     expect(scoreContent(content)).toBe(0);
   });
 
-  it("long high-quality content scores near 1.0", () => {
+  it("repeated filler is not mistaken for high-quality content", () => {
     const content = "This is a very long article about programming. ".repeat(200);
     const score = scoreContent(content);
-    expect(score).toBeGreaterThan(0.7);
+    expect(score).toBeLessThan(0.3);
   });
 
   it("content with high link ratio is penalized", () => {

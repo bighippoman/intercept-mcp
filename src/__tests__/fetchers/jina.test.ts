@@ -8,7 +8,7 @@ describe("jinaFetcher", () => {
 
   it("has correct name and tier", () => {
     expect(jinaFetcher.name).toBe("jina");
-    expect(jinaFetcher.tier).toBe(1);
+    expect(jinaFetcher.tier).toBe(2);
   });
 
   it("fetches via r.jina.ai and returns content", async () => {
@@ -19,10 +19,9 @@ describe("jinaFetcher", () => {
 
     const result = await jinaFetcher.fetch("https://example.com/article");
 
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "https://r.jina.ai/https://example.com/article",
-      expect.objectContaining({ headers: expect.objectContaining({ Accept: "text/markdown" }) })
-    );
+    const call = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(new Headers(call[1]?.headers).get("Accept")).toBe("text/markdown");
+    expect(String(call[0])).toBe("https://r.jina.ai/https://example.com/article");
     expect(result).not.toBeNull();
     expect(result!.content).toBe(mockContent);
     expect(result!.source).toBe("jina");

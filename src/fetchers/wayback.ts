@@ -2,6 +2,7 @@ import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
+import { archiveDate } from "../archive-date.js";
 
 interface WaybackResponse {
   archived_snapshots: {
@@ -11,7 +12,7 @@ interface WaybackResponse {
 
 export const waybackFetcher: Fetcher = {
   name: "wayback",
-  tier: 2,
+  tier: 4,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {
@@ -27,7 +28,7 @@ export const waybackFetcher: Fetcher = {
       if (!pageResponse.ok) return null;
       const html = await pageResponse.text();
       const content = htmlToMarkdown(html);
-      return { content, source: "wayback", quality: scoreContent(content), timing: Date.now() - start };
+      return { content, source: "wayback", sourceKind: "archive", archivedAt: archiveDate(snapshot.url.match(/\/web\/(\d{14})/)?.[1]), quality: scoreContent(content), timing: Date.now() - start };
     } catch { return null; }
   },
 };

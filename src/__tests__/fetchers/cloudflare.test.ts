@@ -15,7 +15,7 @@ describe("cloudflareFetcher", () => {
 
   it("has correct name and tier", () => {
     expect(cloudflareFetcher.name).toBe("cloudflare");
-    expect(cloudflareFetcher.tier).toBe(1);
+    expect(cloudflareFetcher.tier).toBe(2);
   });
 
   it("returns null when env vars are not set", async () => {
@@ -53,15 +53,10 @@ describe("cloudflareFetcher", () => {
 
     await cloudflareFetcher.fetch("https://example.com");
 
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "https://api.cloudflare.com/client/v4/accounts/my-account/browser-rendering/markdown",
-      expect.objectContaining({
-        method: "POST",
-        headers: expect.objectContaining({
-          Authorization: "Bearer my-token",
-        }),
-      })
-    );
+    const call = vi.mocked(fetchSpy).mock.calls[0];
+    expect(new Headers(call[1]?.headers).get("Authorization")).toBe("Bearer my-token");
+    expect(String(call[0])).toBe("https://api.cloudflare.com/client/v4/accounts/my-account/browser-rendering/markdown");
+    expect(call[1]?.method).toBe("POST");
   });
 
   it("returns null on API error", async () => {

@@ -117,7 +117,7 @@ describe("MCP Server Integration", () => {
       const result = await client.listTools();
       const fetchTool = result.tools.find((t) => t.name === "fetch")!;
       expect(fetchTool.title).toBe("Fetch URL");
-      expect(fetchTool.description).toContain("multi-tier chain");
+      expect(fetchTool.description).toContain("native Markdown/direct HTML");
     });
 
     it("search tool description does not mention free tier", async () => {
@@ -238,6 +238,7 @@ describe("MCP Server Integration", () => {
         // structuredContent should have the results
         expect(result.structuredContent).toBeDefined();
         const structured = result.structuredContent as {
+          completeness: string;
           results: Array<{ title: string; url: string; snippet: string }>;
           source: string;
           timing: number;
@@ -331,6 +332,7 @@ describe("MCP Server Integration", () => {
           returnedLength: number;
         };
         expect(structured.truncated).toBe(true);
+        expect(structured.completeness).toBe("partial");
         expect(structured.nextStartIndex).toBe(500);
         expect(structured.contentLength).toBeGreaterThan(500);
         expect(structured.returnedLength).toBe(500);

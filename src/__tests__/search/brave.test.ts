@@ -20,14 +20,9 @@ describe("braveSearch", () => {
     );
 
     const result = await braveSearch("test query", "test-api-key", 5);
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("api.search.brave.com"),
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          "X-Subscription-Token": "test-api-key",
-        }),
-      })
-    );
+    const call = vi.mocked(globalThis.fetch).mock.calls[0];
+    expect(new Headers(call[1]?.headers).get("X-Subscription-Token")).toBe("test-api-key");
+    expect(String(call[0])).toContain("api.search.brave.com");
     expect(result).not.toBeNull();
     expect(result!.results).toHaveLength(2);
     expect(result!.results[0].title).toBe("Result 1");

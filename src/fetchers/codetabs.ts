@@ -5,7 +5,7 @@ import type { Fetcher, FetchResult } from "../types.js";
 
 export const codetabsFetcher: Fetcher = {
   name: "codetabs",
-  tier: 2,
+  tier: 3,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {

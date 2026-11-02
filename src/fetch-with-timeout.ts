@@ -1,4 +1,6 @@
 import { authHeadersFor } from "./auth.js";
+import { requestSignal } from "./request-context.js";
+import { blockedUrlReason } from "./url-guard.js";
 
 const DEFAULT_TIMEOUT = 10_000;
 
@@ -108,13 +110,55 @@ function withAuth(url: string, init: RequestInit): RequestInit {
 }
 
 async function timedFetch(url: string, init: FetchInit, ms: number): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), ms);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal } as RequestInit);
-  } finally {
-    clearTimeout(timeout);
+  const signals = [AbortSignal.timeout(ms), init.signal, requestSignal()].filter((s): s is AbortSignal => !!s);
+  const signal = AbortSignal.any(signals);
+  signal.throwIfAborted();
+  let target = url;
+  let headers = new Headers(init.headers);
+  for (let redirects = 0; redirects <= 8; redirects++) {
+    const response = await fetch(target, { ...withAuth(target, { ...init, headers }), signal, redirect: "manual" } as RequestInit);
+    if (response.status >= 300 && response.status < 400 && response.headers.has("location") && init.redirect !== "manual") {
+      await response.body?.cancel();
+      if (init.redirect === "error") throw new Error("Redirects are disabled for this request");
+      if (redirects === 8) throw new Error("Too many redirects");
+      const next = new URL(response.headers.get("location")!, target).href;
+      const blocked = blockedUrlReason(next);
+      if (blocked) throw new Error(`Redirect refused: ${blocked}`);
+      if (new URL(next).origin !== new URL(target).origin) {
+        const safe = new Headers();
+        for (const name of ["accept", "accept-language", "user-agent"]) {
+          const value = headers.get(name);
+          if (value) safe.set(name, value);
+        }
+        headers = safe;
+        if (init.method && !["GET", "HEAD"].includes(init.method.toUpperCase())) {
+          throw new Error("Cross-origin redirects of requests with bodies are refused");
+        }
+      }
+      if (response.status === 303 || ((response.status === 301 || response.status === 302) && init.method?.toUpperCase() === "POST")) {
+        init = { ...init, method: "GET", body: undefined };
+        headers.delete("content-type"); headers.delete("content-length");
+      }
+      target = next;
+      continue;
+    }
+    if (!response.body) return response;
+    // Abort remains active through body consumption; enforce the cap while streaming.
+    let bytes = 0;
+    const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        signal.throwIfAborted();
+        bytes += chunk.byteLength;
+        if (bytes > 25 * 1024 * 1024) throw new Error("Response exceeds the 25 MB download limit");
+        controller.enqueue(chunk);
+      },
+    }), { signal });
+    const bounded = new Response(body, { status: response.status, statusText: response.statusText, headers: response.headers });
+    Object.defineProperty(bounded, "url", { value: response.url || target });
+    Object.defineProperty(bounded, "redirected", { value: target !== url });
+    return bounded;
   }
+  throw new Error("Too many redirects");
 }
 
 export async function fetchWithTimeout(
@@ -122,8 +166,6 @@ export async function fetchWithTimeout(
   init: RequestInit = {},
   ms = DEFAULT_TIMEOUT,
 ): Promise<Response> {
-  init = withAuth(url, init);
-
   const list = loadProxyList();
   if (list.length === 0) {
     // No rotation configured — behave exactly as before (global agent applies
@@ -144,7 +186,8 @@ export async function fetchWithTimeout(
       const response = await timedFetch(url, { ...init, dispatcher }, ms);
       // Accept anything that isn't a block, and always accept the last try.
       if (!BLOCK_STATUSES.has(response.status) || i === attempts - 1) return response;
-      lastResponse = response; // blocked — rotate to the next proxy
+      lastResponse = new Response(null, { status: response.status, statusText: response.statusText, headers: response.headers });
+      await response.body?.cancel();
     } catch (error) {
       lastError = error;
     }

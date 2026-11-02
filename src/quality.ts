@@ -8,6 +8,8 @@ export function scoreContent(content: string): number {
   // never returns or caches them.
   if (detectBlock(content)) return 0;
 
+  const words = content.toLowerCase().match(/\p{L}{3,}/gu) ?? [];
+  if (words.length > 200 && new Set(words).size / words.length < 0.03) return 0.15;
   let score = 1.0;
 
   const linkCount = (content.match(/\[.*?\]\(.*?\)/g) || []).length;

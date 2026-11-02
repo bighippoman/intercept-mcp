@@ -24,6 +24,7 @@ describe("sharedCacheRead", () => {
       trust_level: 1,
       source: "raw",
       age_seconds: 10,
+      verified_at: null,
     });
 
     const result = await sharedCacheRead("https://example.com");
@@ -31,8 +32,10 @@ describe("sharedCacheRead", () => {
     expect(result).toMatchObject({
       content: LONG_MARKDOWN,
       source: "agentsweb (trust:1, via:raw)",
-      quality: 0.6,
+      completeness: "complete",
+      sourceKind: "live",
     });
+    expect(result?.verifiedAt).toBeUndefined();
   });
 
   it("rejects indirect shared-cache sources that can describe a page instead of fetching it", async () => {

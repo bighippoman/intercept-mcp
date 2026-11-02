@@ -153,6 +153,8 @@ export const youtubeHandler: Handler = {
       return {
         content: parts.join("\n"),
         source: "youtube",
+        completeness: !transcript || transcript.includes("[Transcript truncated]") ? "partial" : "complete",
+        sourceKind: !transcript ? "metadata" : "live",
         timing: Date.now() - start,
       };
     } catch {

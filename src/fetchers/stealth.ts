@@ -12,6 +12,8 @@ import { authHeadersFor } from "../auth.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
+import { requestSignal } from "../request-context.js";
+import { blockedUrlReason } from "../url-guard.js";
 
 export const stealthFetcher: Fetcher = {
   name: "stealth",
@@ -27,6 +29,8 @@ export const stealthFetcher: Fetcher = {
 
       const response = await gotScraping({
         url,
+        signal: requestSignal(),
+        hooks: { beforeRedirect: [(options) => { if (!options.url) throw new Error("Missing redirect URL"); const reason=blockedUrlReason(options.url.toString()); if(reason)throw new Error(reason); }] },
         headerGeneratorOptions: {
           browsers: ["chrome"],
           operatingSystems: ["macos", "windows"],

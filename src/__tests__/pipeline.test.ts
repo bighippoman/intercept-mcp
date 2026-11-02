@@ -128,8 +128,8 @@ describe("runPipeline", () => {
       makeFetcher("og-meta", 5, { content: "Could not retrieve content. Visit the URL directly. " + "y".repeat(200), source: "og-meta", quality: 0.05, timing: 30 }),
     ];
     const result = await runPipeline("https://example.com", fetchers);
-    // The challenge must not win; the og-meta stub does.
-    expect(result.result.source).toBe("og-meta");
+    // Neither a challenge nor a failure placeholder is usable content.
+    expect(result.result.source).toBe("none");
     expect(result.diagnosis).toBeDefined();
     expect(result.diagnosis).toContain("anti-bot challenge");
   });
