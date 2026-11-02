@@ -46,7 +46,7 @@ function cleanJinaMarkdown(md: string): string {
 
 export const jinaFetcher: Fetcher = {
   name: "jina",
-  tier: 1,
+  tier: 2,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {

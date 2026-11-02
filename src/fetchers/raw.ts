@@ -13,7 +13,7 @@ let uaIndex = 0;
 
 export const rawFetcher: Fetcher = {
   name: "raw",
-  tier: 3,
+  tier: 1,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     const ua = USER_AGENTS[uaIndex % USER_AGENTS.length];

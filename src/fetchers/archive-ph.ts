@@ -2,6 +2,9 @@ import { fetchWithTimeout, getProxyUrl } from "../fetch-with-timeout.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
+import { requestSignal } from "../request-context.js";
+import { blockedUrlReason } from "../url-guard.js";
+import { setTimeout as delay } from "node:timers/promises";
 
 const TIMEMAP_TIMEOUT = 4_000;
 const SNAPSHOT_DELAY = 1_000;
@@ -39,7 +42,7 @@ async function findSnapshotUrl(candidate: string): Promise<string | null> {
 
 export const archivePhFetcher: Fetcher = {
   name: "archive-ph",
-  tier: 3,
+  tier: 4,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {
@@ -54,10 +57,10 @@ export const archivePhFetcher: Fetcher = {
 
       const snapshotUrl = (await Promise.all(urls.map(findSnapshotUrl))).find((u): u is string => Boolean(u)) ?? null;
 
-      if (!snapshotUrl) return null;
+      if (!snapshotUrl || blockedUrlReason(snapshotUrl)) return null;
 
       // Delay to avoid archive.ph rate limiting (triggers captcha)
-      await new Promise((r) => setTimeout(r, SNAPSHOT_DELAY));
+      await delay(SNAPSHOT_DELAY, undefined, { signal: requestSignal() });
 
       // Use got-scraping to bypass archive.ph's Cloudflare captcha
       // (stealth TLS fingerprint impersonation works against their challenge)
@@ -66,6 +69,8 @@ export const archivePhFetcher: Fetcher = {
 
       const response = await gotScraping({
         url: snapshotUrl,
+        signal: requestSignal(),
+        hooks: { beforeRedirect: [(options) => { if (!options.url) throw new Error("Missing redirect URL"); const reason = blockedUrlReason(options.url.toString()); if (reason) throw new Error(reason); }] },
         headerGeneratorOptions: {
           browsers: ["chrome"],
           operatingSystems: ["macos", "windows"],

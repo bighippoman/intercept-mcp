@@ -2,6 +2,7 @@ import { fetchWithTimeout } from "../fetch-with-timeout.js";
 import { htmlToMarkdown } from "../html.js";
 import { scoreContent } from "../quality.js";
 import type { Fetcher, FetchResult } from "../types.js";
+import { archiveDate } from "../archive-date.js";
 
 interface ArquivoCdxEntry {
   url: string;
@@ -11,7 +12,7 @@ interface ArquivoCdxEntry {
 
 export const arquivoFetcher: Fetcher = {
   name: "arquivo",
-  tier: 2,
+  tier: 4,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {
@@ -40,7 +41,7 @@ export const arquivoFetcher: Fetcher = {
       if (!html || html.length < 200) return null;
 
       const content = htmlToMarkdown(html);
-      return { content, source: "arquivo", quality: scoreContent(content), timing: Date.now() - start };
+      return { content, source: "arquivo", sourceKind: "archive", archivedAt: archiveDate(timestamp), quality: scoreContent(content), timing: Date.now() - start };
     } catch {
       return null;
     }

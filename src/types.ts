@@ -5,6 +5,14 @@ export interface FetchResult {
   timing: number;
   /** Age of the content when served from a cache, in seconds. */
   ageSeconds?: number;
+  completeness?: "complete" | "partial" | "unavailable";
+  sourceKind?: "live" | "archive" | "metadata" | "image";
+  retrievedAt?: string;
+  verifiedAt?: string;
+  canonicalUrl?: string;
+  contentHash?: string;
+  archivedAt?: string;
+  title?: string;
 }
 
 export interface Fetcher {
@@ -29,14 +37,18 @@ export interface AttemptRecord {
 }
 
 export interface PipelineOptions {
+  health?: import("./provider-health.js").ProviderHealth;
   maxTier?: number;
   qualityThreshold?: number;
+  allowArchive?: boolean;
 }
 
 export interface HandlerResult {
   content: string;
   source: string;
   timing: number;
+  completeness?: "complete" | "partial" | "unavailable";
+  sourceKind?: "live" | "archive" | "metadata" | "image";
 }
 
 export interface Handler {

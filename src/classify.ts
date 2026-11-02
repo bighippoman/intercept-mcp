@@ -19,13 +19,14 @@ const HEAD_CHARS = 500;
 // Anti-bot interstitials and CAPTCHAs (Cloudflare, DDoS-Guard, DataDome,
 // PerimeterX/HUMAN, Akamai, Imperva/Distil, generic reCAPTCHA/hCaptcha).
 const CHALLENGE: RegExp[] = [
-  /captcha/i,
+  /(?:complete|solve|enter|verify).{0,30}captcha/i,
+  /^\s*#{0,3}\s*(?:captcha|recaptcha|hcaptcha)(?: verification| challenge)?\s*$/im,
   /cf-challenge/i,
   /g-recaptcha/i,
-  /recaptcha/i,
-  /hcaptcha/i,
+
+
   /px-captcha/i,
-  /datadome/i,
+  /powered by datadome/i,
   /checking your browser/i,
   /checking if the site connection is secure/i,
   /just a moment/i,
@@ -54,7 +55,7 @@ const NEEDS_JS: RegExp[] = [
 const PAYWALL: RegExp[] = [
   /sign in to continue/i,
   /log in to continue/i,
-  /create an account/i,
+  /create an account to (?:read|continue|view)/i,
   /subscribe to read/i,
   /subscribe to continue/i,
   /sign up to read/i,

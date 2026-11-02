@@ -12,7 +12,7 @@ describe("markdownEndpointFetcher", () => {
 
   it("has the expected name and tier", () => {
     expect(markdownEndpointFetcher.name).toBe("markdown-endpoint");
-    expect(markdownEndpointFetcher.tier).toBe(3);
+    expect(markdownEndpointFetcher.tier).toBe(1);
   });
 
   it("requests the .md variant of the path", async () => {

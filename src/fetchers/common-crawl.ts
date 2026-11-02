@@ -120,7 +120,7 @@ async function extractWarcBody(record: Uint8Array): Promise<string | null> {
 
 export const commonCrawlFetcher: Fetcher = {
   name: "common-crawl",
-  tier: 2,
+  tier: 4,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
     try {

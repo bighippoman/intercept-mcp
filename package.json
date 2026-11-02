@@ -1,6 +1,6 @@
 {
   "name": "intercept-mcp",
-  "version": "5.6.1",
+  "version": "6.0.0",
   "description": "MCP server with multi-tier fallback chain for fetching web content as clean markdown",
   "type": "module",
   "main": "build/index.js",
@@ -14,9 +14,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "start": "node build/index.js",
-    "test": "vitest run",
+    "test": "vitest run --exclude src/__tests__/e2e.test.ts",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run check",
+    "test:live": "vitest run src/__tests__/e2e.test.ts",
+    "check": "npm test && npm run build"
   },
   "keywords": [
     "mcp",
@@ -39,13 +41,12 @@
   "mcpName": "io.github.bighippoman/intercept-mcp",
   "license": "MIT",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.18.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "@mozilla/readability": "^0.6.0",
     "@truto/turndown-plugin-gfm": "^1.0.2",
-    "ddg-kit": "^0.1.0",
     "got-scraping": "^4.2.1",
     "linkedom": "^0.18.12",
     "pdf-parse": "^2.4.5",

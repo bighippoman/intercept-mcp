@@ -1,5 +1,10 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
+import { createHash } from "node:crypto";
+import { withRequestDeadline, throwIfCancelled, requestSignal } from "./request-context.js";
+import { relevantPassages } from "./passages.js";
+import { ProviderHealth } from "./provider-health.js";
+import { SingleFlight } from "./single-flight.js";
 import { normalizeUrl } from "./normalize.js";
 import { runPipeline, formatResult } from "./pipeline.js";
 import { routeUrl } from "./router.js";
@@ -38,7 +43,7 @@ import { githubHandler } from "./handlers/github.js";
 import { braveSearch } from "./search/brave.js";
 import { searxngSearch } from "./search/searxng.js";
 import { duckduckgoSearch } from "./search/duckduckgo.js";
-import { sharedCacheRead, sharedCacheWrite, sharedCacheConfirm } from "./shared-cache.js";
+import { sharedCacheRead, sharedCacheWrite } from "./shared-cache.js";
 import type { Fetcher, Handler, PipelineResult, SearchOptions, SearchResponse } from "./types.js";
 import { createRequire } from "node:module";
 
@@ -54,27 +59,13 @@ const HANDLERS: Handler[] = [
   githubHandler,
 ];
 
-// Order matters: runPipeline groups *consecutive* tier-2 fetchers into one
-// parallel batch, so all tier-2 entries must stay contiguous.
+// Prefer native/live retrieval. Archives remain a clearly labeled fallback.
 const FETCHERS: Fetcher[] = [
-  cloudflareFetcher,
-  jinaFetcher,
-  waybackFetcher,
-  arquivoFetcher,
-  commonCrawlFetcher,
-  codetabsFetcher,
-  markdownEndpointFetcher,
-  archivePhFetcher,
-  rawFetcher,
-  stealthFetcher,
-  flaresolverrFetcher,
-  webUnlockerFetcher,
-  rssFetcher,
-  crossrefFetcher,
-  semanticScholarFetcher,
-  hackerNewsFetcher,
-  redditFetcher,
-  ogMetaFetcher,
+  markdownEndpointFetcher, rawFetcher, cloudflareFetcher, jinaFetcher,
+  stealthFetcher, codetabsFetcher, flaresolverrFetcher, webUnlockerFetcher,
+  waybackFetcher, arquivoFetcher, commonCrawlFetcher, archivePhFetcher,
+  rssFetcher, crossrefFetcher, semanticScholarFetcher, hackerNewsFetcher,
+  redditFetcher, ogMetaFetcher,
 ];
 
 function formatSearchResult(searchResult: SearchResponse): string {
@@ -104,6 +95,11 @@ function envInt(name: string, fallback: number): number {
 }
 
 interface FetchOptions {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  maxAgeSeconds?: number;
+  allowArchive?: boolean;
+  health?: ProviderHealth;
   maxTier?: number;
   noCache?: boolean;
   /** Return direct image URLs as an image content block (default true). */
@@ -131,12 +127,14 @@ function failureOutcome(content: string, attemptName?: string): FetchOutcome {
  * session cache, specialized handlers, shared cache, fetcher pipeline.
  * Shared by the fetch, fetch_batch, and research tools. Never throws.
  */
-async function performFetch(
+async function performFetchInner(
   cache: LRUCache,
   normalizedUrl: string,
   options: FetchOptions = {},
 ): Promise<FetchOutcome> {
-  const { maxTier = 5, noCache = false, allowImage = true } = options;
+  const { maxTier = 5, noCache = false, allowImage = true, maxAgeSeconds = 3600, allowArchive = !noCache, health } = options;
+  throwIfCancelled();
+  const failureKey = `${normalizedUrl}#policy:${maxTier}:${allowArchive}:${maxAgeSeconds}`;
 
   const blocked = blockedUrlReason(normalizedUrl);
   if (blocked) {
@@ -162,7 +160,7 @@ async function performFetch(
   }
 
   if (!noCache) {
-    if (cache.isFailure(normalizedUrl)) {
+    if (cache.isFailure(failureKey)) {
       return failureOutcome(
         `Failed to fetch content from ${normalizedUrl}. This URL failed earlier in this session and was not re-attempted. Pass noCache: true to force a retry.`,
         "session-cache",
@@ -170,13 +168,14 @@ async function performFetch(
     }
 
     const cached = cache.get(normalizedUrl);
-    if (cached) {
+    const cachedAge = cached?.result.retrievedAt ? (Date.now() - Date.parse(cached.result.retrievedAt)) / 1000 : Infinity;
+    if (cached && cachedAge <= maxAgeSeconds && (allowArchive || cached.result.sourceKind !== "archive")) {
       const original = cached.result.source;
       return {
         ok: true,
         pipelineResult: {
           ...cached,
-          result: { ...cached.result, source: `cache (${original})` },
+          result: { ...cached.result, ageSeconds: Math.max(0, cachedAge), source: `cache (${original})` },
         },
       };
     }
@@ -187,18 +186,23 @@ async function performFetch(
   // shared cache (don't publish private content; don't serve an anonymous copy
   // in its place). The in-process session cache is fine.
   const authed = hasAuthFor(normalizedUrl);
-  const useSharedCache = !authed && process.env.INTERCEPT_SHARED_CACHE !== "false";
+  const sensitiveUrl = /(?:[?&](?:token|sig|signature|access_token|key|api_key|x-amz-[^=]+|x-goog-[^=]+)=)|^https?:\/\/[^/]*@/i.test(normalizedUrl);
+  const githubToken = !!process.env.GITHUB_TOKEN && /(^|\.)github\.com$/.test(new URL(normalizedUrl).hostname);
+  const useSharedCache = !authed && !githubToken && !sensitiveUrl && process.env.INTERCEPT_SHARED_CACHE !== "false";
 
   // Specialized handlers first — they produce structured, high-quality output
-  const handlerResult = await routeUrl(normalizedUrl, HANDLERS);
+  const handlerResult = await routeUrl(normalizedUrl, authed || sensitiveUrl ? [pdfHandler] : HANDLERS);
+  throwIfCancelled();
+  if (handlerResult?.completeness === "unavailable") return failureOutcome(handlerResult.content, handlerResult.source);
   if (handlerResult) {
+    const metadata = handlerResult.sourceKind === "metadata" || handlerResult.source === "arxiv";
     const pipelineResult: PipelineResult = {
-      result: { content: handlerResult.content, source: handlerResult.source, quality: 1.0, timing: handlerResult.timing },
+      result: enrichResult({ ...handlerResult, quality: metadata ? 0.5 : 0.9, completeness: handlerResult.completeness ?? (metadata ? "partial" : "complete"), sourceKind: metadata ? "metadata" : "live" }, normalizedUrl),
       attempts: [{ name: handlerResult.source, status: "success" as const, quality: 1.0, timing: handlerResult.timing }],
     };
     cache.set(normalizedUrl, pipelineResult);
     // Contribute to shared cache (fire-and-forget)
-    if (useSharedCache && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
+    if (useSharedCache && pipelineResult.result.completeness === "complete" && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
       sharedCacheWrite(normalizedUrl, handlerResult.content, handlerResult.source);
     }
     return { ok: true, pipelineResult };
@@ -206,7 +210,7 @@ async function performFetch(
 
   // Shared agentsweb.org cache — checked after handlers but before the fetcher pipeline
   if (!noCache && useSharedCache) {
-    const sharedResult = await sharedCacheRead(normalizedUrl);
+    const sharedResult = await sharedCacheRead(normalizedUrl, { maxAgeSeconds, allowArchive });
     if (sharedResult && sharedResult.quality >= 0.3) {
       const pipelineResult: PipelineResult = {
         result: sharedResult,
@@ -214,43 +218,59 @@ async function performFetch(
       };
       cache.set(normalizedUrl, pipelineResult);
 
-      // Self-healing: verify cached content in background
-      // If our local fetch matches, confirm it (trust++).
-      // If it doesn't match, overwrite with correct content.
-      if (process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
-        (async () => {
-          try {
-            const localResult = await runPipeline(normalizedUrl, FETCHERS, { maxTier: 2 });
-            if (localResult.result.source !== "none" && localResult.result.quality >= 0.5) {
-              await sharedCacheConfirm(normalizedUrl, localResult.result.content).catch(() => {});
-              // If local content is fresher/better, update the cache
-              if (localResult.result.quality > sharedResult.quality) {
-                sharedCacheWrite(normalizedUrl, localResult.result.content, localResult.result.source);
-              }
-            }
-          } catch {}
-        })();
-      }
 
       return { ok: true, pipelineResult };
     }
   }
 
-  const pipelineResult = await runPipeline(normalizedUrl, FETCHERS, { maxTier });
+  // Authenticated pages must use direct origin requests, never anonymous intermediaries.
+  const fetchers = authed || githubToken || sensitiveUrl ? [markdownEndpointFetcher, rawFetcher] : FETCHERS;
+  const pipelineResult = await runPipeline(normalizedUrl, fetchers, { maxTier, allowArchive, health: authed ? undefined : health });
+  throwIfCancelled();
+  pipelineResult.result = enrichResult(pipelineResult.result, normalizedUrl);
 
   if (pipelineResult.result.source === "none") {
-    cache.setFailure(normalizedUrl);
+    cache.setFailure(failureKey);
     return { ok: false, pipelineResult };
   }
 
   cache.set(normalizedUrl, pipelineResult);
 
   // Contribute to shared cache (fire-and-forget)
-  if (useSharedCache && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
+  if (useSharedCache && pipelineResult.result.completeness === "complete" && pipelineResult.result.sourceKind === "live" && process.env.INTERCEPT_CACHE_READ_ONLY !== "true") {
     sharedCacheWrite(normalizedUrl, pipelineResult.result.content, pipelineResult.result.source);
   }
 
   return { ok: true, pipelineResult };
+}
+
+const flights = new WeakMap<LRUCache, SingleFlight<FetchOutcome>>();
+
+function enrichResult(result: PipelineResult["result"], url: string): PipelineResult["result"] {
+  const sourceKind = result.sourceKind ?? (/^(wayback|arquivo|archive-ph|common-crawl)$/.test(result.source) ? "archive" : /^(og-meta|crossref|semantic-scholar|hackernews|reddit|arxiv)$/.test(result.source) ? "metadata" : "live");
+  return {
+    ...result, sourceKind,
+    completeness: result.completeness ?? (result.source === "none" ? "unavailable" : sourceKind === "metadata" ? "partial" : "complete"),
+    canonicalUrl: result.canonicalUrl ?? url,
+    retrievedAt: result.retrievedAt ?? new Date().toISOString(),
+    contentHash: result.contentHash ?? createHash("sha256").update(result.content).digest("hex"),
+    title: result.title ?? result.content.match(/^#\s+(.+)$/m)?.[1],
+  };
+}
+
+export async function performFetch(cache: LRUCache, url: string, options: FetchOptions = {}): Promise<FetchOutcome> {
+  options = { ...options, noCache: options.noCache || options.maxAgeSeconds === 0 };
+  const parent = requestSignal();
+  if (parent) options.signal = options.signal ? AbortSignal.any([parent, options.signal]) : parent;
+  let flight = flights.get(cache);
+  if (!flight) { flight = new SingleFlight(); flights.set(cache, flight); }
+  const key = JSON.stringify([url, options.maxTier, options.noCache, options.allowImage, options.maxAgeSeconds, options.allowArchive, options.timeoutMs]);
+  try {
+    return await flight.run(key, options.signal, (signal) =>
+      withRequestDeadline(options.timeoutMs ?? 25_000, signal, () => performFetchInner(cache, url, options)));
+  } catch (error) {
+    return failureOutcome(error instanceof Error ? error.message : "Retrieval cancelled or deadline exceeded", "deadline");
+  }
 }
 
 /** Slice the result content and render it with the attempt-chain footer. */
@@ -258,7 +278,7 @@ function renderFetchText(pipelineResult: PipelineResult, maxLength: number, star
   const slice = sliceWithNotice(pipelineResult.result.content, maxLength, startIndex);
   const text = formatResult({
     ...pipelineResult,
-    result: { ...pipelineResult.result, content: slice.text },
+    result: { ...pipelineResult.result, content: slice.text, completeness: slice.returnedLength < slice.totalLength ? "partial" : pipelineResult.result.completeness },
   });
   return { text, slice };
 }
@@ -270,6 +290,14 @@ function fetchStructured(url: string, outcome: FetchOutcome, slice: ContentSlice
     source: result.source,
     quality: result.quality,
     timing: result.timing,
+    completeness: slice.returnedLength < slice.totalLength ? "partial" : result.completeness ?? "complete",
+    sourceKind: result.sourceKind ?? "live",
+    retrievedAt: result.retrievedAt,
+    verifiedAt: result.verifiedAt,
+    canonicalUrl: result.canonicalUrl ?? url,
+    contentHash: result.contentHash,
+    archivedAt: result.archivedAt,
+    title: result.title,
     contentLength: slice.totalLength,
     returnedLength: slice.returnedLength,
     truncated: slice.truncated,
@@ -340,12 +368,28 @@ export function createServer(): McpServer {
     failureTtl: envInt("INTERCEPT_CACHE_FAILURE_TTL_MS", 5 * 60_000),
   });
 
+  const health = new ProviderHealth();
+
   const server = new McpServer({
     name: "intercept",
     version: PKG_VERSION,
   });
 
+  const retrievalInputs = {
+    timeoutMs: z.number().int().min(500).max(120_000).optional().describe("Overall retrieval deadline in milliseconds, including downloads (default 25000)"),
+    maxAgeSeconds: z.number().int().min(0).max(2_592_000).optional().describe("Oldest acceptable cached retrieval in seconds; 0 forces retrieval (default 3600)"),
+    allowArchive: z.boolean().optional().describe("Allow labeled historical snapshots after live retrieval fails; disabled by noCache unless explicitly enabled"),
+  };
+
   const fetchOutputSchema = {
+    completeness: z.enum(["complete", "partial", "unavailable"]).optional(),
+    sourceKind: z.enum(["live", "archive", "metadata", "image"]).optional(),
+    retrievedAt: z.string().optional(),
+    verifiedAt: z.string().optional(),
+    canonicalUrl: z.string().optional(),
+    contentHash: z.string().optional(),
+    archivedAt: z.string().optional(),
+    title: z.string().optional(),
     url: z.string(),
     source: z.string(),
     quality: z.number(),
@@ -364,8 +408,9 @@ export function createServer(): McpServer {
     {
       title: "Fetch URL",
       description:
-        "Fetch a URL and return its content as clean markdown. Handles Twitter/X tweets, YouTube videos (with transcripts), arXiv papers, PDFs, Wikipedia articles, and GitHub repos/files/issues/PRs/releases directly. Direct image URLs (png/jpeg/gif/webp) are returned as an image block for vision. Otherwise checks a shared cache, then falls back through a multi-tier chain: Jina Reader, web archives (Wayback, archive.ph, Arquivo.pt), raw fetch, RSS, CrossRef, Semantic Scholar, HackerNews, Reddit, OG meta. Long pages are truncated at maxLength characters — paginate with startIndex. Results are cached for the session; pass noCache to force a live fetch.",
+        "Fetch a public or authenticated URL as readable Markdown, with source, retrieval time, content hash and completeness. Specialized handlers support GitHub, Wikipedia, YouTube transcripts, PDFs, arXiv and tweets. Otherwise checks fresh shared content, then native Markdown/direct HTML, hosted rendering, and labeled archive fallbacks. Authenticated requests use direct sources only. Paginate long pages with startIndex and maxLength. noCache forces retrieval and disables archives unless explicitly allowed.",
       inputSchema: {
+        ...retrievalInputs,
         url: z.string().url().describe("The URL to fetch"),
         maxTier: z
           .number()
@@ -400,9 +445,9 @@ export function createServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ url, maxTier, maxLength, startIndex, noCache }) => {
+    async ({ url, maxTier, maxLength, startIndex, noCache, timeoutMs, maxAgeSeconds, allowArchive }, extra) => {
       const normalizedUrl = normalizeUrl(url);
-      const outcome = await performFetch(cache, normalizedUrl, { maxTier, noCache });
+      const outcome = await performFetch(cache, normalizedUrl, { maxTier, noCache: noCache || maxAgeSeconds === 0, timeoutMs, maxAgeSeconds, allowArchive, signal: extra.signal, health });
 
       if (!outcome.ok) {
         return {
@@ -447,6 +492,7 @@ export function createServer(): McpServer {
       description:
         "Fetch up to 10 URLs in parallel and return each as clean markdown. Same handler/fallback chain as the fetch tool, with a smaller per-URL length budget. Use after a search to pull several sources in one call.",
       inputSchema: {
+        ...retrievalInputs,
         urls: z.array(z.string().url()).min(1).max(10).describe("The URLs to fetch (1-10)"),
         maxTier: z
           .number()
@@ -486,12 +532,12 @@ export function createServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ urls, maxTier, maxLength, noCache }) => {
+    async ({ urls, maxTier, maxLength, noCache, timeoutMs, maxAgeSeconds, allowArchive }, extra) => {
       const perUrlLength = maxLength ?? DEFAULT_BATCH_MAX_LENGTH;
       const normalized = [...new Set(urls.map(normalizeUrl))];
 
       const outcomes = await Promise.all(
-        normalized.map((u) => performFetch(cache, u, { maxTier, noCache, allowImage: false }))
+        normalized.map((u) => performFetch(cache, u, { maxTier, noCache: noCache || maxAgeSeconds === 0, timeoutMs, maxAgeSeconds, allowArchive, signal: extra.signal, health, allowImage: false }))
       );
 
       const sections: string[] = [];
@@ -531,6 +577,8 @@ export function createServer(): McpServer {
       description:
         "Search the web and fetch the content of the top results in one call. Returns the full content of each result as markdown, ready to summarize or compare. Use this instead of separate search + fetch calls when researching a topic.",
       inputSchema: {
+        passagesOnly: z.boolean().optional().describe("Return query-relevant verbatim passages instead of full documents"),
+        timeoutMs: retrievalInputs.timeoutMs,
         query: z.string().describe("Search query"),
         count: z
           .number()
@@ -560,6 +608,10 @@ export function createServer(): McpServer {
             fetched: z.boolean(),
             source: z.string(),
             quality: z.number(),
+            completeness: z.string().optional(),
+            retrievedAt: z.string().optional(),
+            contentHash: z.string().optional(),
+            passages: z.array(z.object({text:z.string(),heading:z.string(),startIndex:z.number(),endIndex:z.number(),citationUrl:z.string()})).optional(),
           })
         ),
       },
@@ -570,7 +622,9 @@ export function createServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ query, count, maxLength, site, freshness }) => {
+    async ({ query, count, maxLength, site, freshness, timeoutMs, passagesOnly }, extra) => withRequestDeadline(timeoutMs ?? 35_000, extra.signal, async () => {
+      const progressToken = extra._meta?.progressToken;
+      if (progressToken !== undefined) await extra.sendNotification({method:"notifications/progress",params:{progressToken,progress:0,total:count+1,message:"Finding sources"}});
       const searchResult = await runSearch(query, count, { site, freshness });
 
       if (!searchResult || searchResult.results.length === 0) {
@@ -588,16 +642,18 @@ export function createServer(): McpServer {
       const perUrlLength = maxLength ?? DEFAULT_BATCH_MAX_LENGTH;
       const top = searchResult.results.slice(0, count);
       const outcomes = await Promise.all(
-        top.map((r) => performFetch(cache, normalizeUrl(r.url), { allowImage: false }))
+        top.map((r) => performFetch(cache, normalizeUrl(r.url), { allowImage: false, signal: extra.signal, health }))
       );
 
       const sections: string[] = [`# Research: ${query}`, `search source: ${searchResult.source}`, ""];
-      const structured: Array<{ title: string; url: string; fetched: boolean; source: string; quality: number }> = [];
+      const structured: Array<Record<string, unknown>> = [];
 
       for (let i = 0; i < top.length; i++) {
         const r = top[i];
         const outcome = outcomes[i];
-        const { text } = renderFetchText(outcome.pipelineResult, perUrlLength, 0);
+        const { text: fullText, slice } = renderFetchText(outcome.pipelineResult, perUrlLength, 0);
+        const passages = outcome.ok ? relevantPassages(outcome.pipelineResult.result.content,query,r.url) : [];
+        const text = passagesOnly && passages.length ? passages.map((p,j)=>`### Passage ${j+1}: ${p.heading}\n${p.citationUrl}\n\n${p.text}`).join("\n\n") : fullText;
 
         sections.push(`## ${i + 1}. ${r.title}\n${r.url}\n\n${text}`);
         structured.push({
@@ -606,14 +662,19 @@ export function createServer(): McpServer {
           fetched: outcome.ok,
           source: outcome.pipelineResult.result.source,
           quality: outcome.pipelineResult.result.quality,
+          completeness: (passagesOnly && passages.length) || slice.returnedLength < slice.totalLength ? "partial" : outcome.pipelineResult.result.completeness,
+          retrievedAt: outcome.pipelineResult.result.retrievedAt,
+          contentHash: outcome.pipelineResult.result.contentHash,
+          passages,
         });
       }
 
+      if (progressToken !== undefined) await extra.sendNotification({method:"notifications/progress",params:{progressToken,progress:count+1,total:count+1,message:"Sources ready"}});
       return {
         structuredContent: { query, searchSource: searchResult.source, results: structured },
         content: [{ type: "text" as const, text: sections.join("\n\n") }],
       };
-    }
+    }).catch(error => ({isError:true,content:[{type:"text" as const,text:`Research stopped: ${error instanceof Error ? error.message : "cancelled"}`}]}))
   );
 
   server.registerTool(
@@ -623,6 +684,7 @@ export function createServer(): McpServer {
       description:
         "Search the web and return results. Uses Brave Search API if BRAVE_API_KEY is set, otherwise falls back to SearXNG and then DuckDuckGo. Supports domain filtering (site), freshness, and pagination (page).",
       inputSchema: {
+        timeoutMs: retrievalInputs.timeoutMs,
         query: z.string().describe("Search query"),
         count: z
           .number()
@@ -660,7 +722,7 @@ export function createServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ query, count, site, freshness, page }) => {
+    async ({ query, count, site, freshness, page, timeoutMs }, extra) => withRequestDeadline(timeoutMs ?? 25_000, extra.signal, async () => {
       const searchResult = await runSearch(query, count, { site, freshness, page });
 
       if (!searchResult) {
@@ -688,7 +750,7 @@ export function createServer(): McpServer {
           },
         ],
       };
-    }
+    }).catch(error => ({isError:true,content:[{type:"text" as const,text:`Search stopped: ${error instanceof Error ? error.message : "cancelled"}`}]}))
   );
 
   server.registerTool(
@@ -698,6 +760,7 @@ export function createServer(): McpServer {
       description:
         "Extract specific values from a web page as JSON instead of markdown prose. Provide CSS selectors to pull named fields (text or an attribute, first match or all), and/or set tables:true to convert every HTML table to arrays of row objects. Use this when you need particular data (prices, lists, specs, tabular data) rather than the whole page. Honors per-domain auth and proxies.",
       inputSchema: {
+        timeoutMs: retrievalInputs.timeoutMs,
         url: z.string().url().describe("The URL to extract from"),
         selectors: z
           .record(
@@ -727,7 +790,7 @@ export function createServer(): McpServer {
         openWorldHint: true,
       },
     },
-    async ({ url, selectors, tables }) => {
+    async ({ url, selectors, tables, timeoutMs }, extra) => withRequestDeadline(timeoutMs ?? 25_000, extra.signal, async () => {
       const normalizedUrl = normalizeUrl(url);
       const page = await fetchPageHtml(normalizedUrl);
       if ("error" in page) {
@@ -749,7 +812,7 @@ export function createServer(): McpServer {
         structuredContent: structured,
         content: [{ type: "text" as const, text: summary }],
       };
-    }
+    }).catch(error => ({isError:true,content:[{type:"text" as const,text:`Extraction stopped: ${error instanceof Error ? error.message : "cancelled"}`}]}))
   );
 
   server.registerResource(

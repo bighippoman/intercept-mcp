@@ -34,7 +34,7 @@ describe("commonCrawlFetcher", () => {
 
   it("has the expected name and tier", () => {
     expect(commonCrawlFetcher.name).toBe("common-crawl");
-    expect(commonCrawlFetcher.tier).toBe(2);
+    expect(commonCrawlFetcher.tier).toBe(4);
   });
 
   it("resolves index, looks up the record, and parses the WARC body", async () => {
@@ -49,7 +49,7 @@ describe("commonCrawlFetcher", () => {
         return Promise.resolve(new Response(cdxLine({ length: String(gz.length) }), { status: 200 }));
       }
       if (u.startsWith("https://data.commoncrawl.org/")) {
-        expect((init?.headers as Record<string, string>).Range).toBe(`bytes=0-${gz.length - 1}`);
+        expect(new Headers(init?.headers).get("Range")).toBe(`bytes=0-${gz.length - 1}`);
         return Promise.resolve(new Response(gz, { status: 206 }));
       }
       return Promise.resolve(new Response("unexpected", { status: 404 }));

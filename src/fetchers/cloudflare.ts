@@ -4,7 +4,7 @@ import type { Fetcher, FetchResult } from "../types.js";
 
 export const cloudflareFetcher: Fetcher = {
   name: "cloudflare",
-  tier: 1,
+  tier: 2,
   async fetch(url: string): Promise<FetchResult | null> {
     const accountId = process.env.CF_ACCOUNT_ID;
     const apiToken = process.env.CF_API_TOKEN;

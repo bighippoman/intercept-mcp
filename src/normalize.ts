@@ -1,59 +1,19 @@
-const STRIP_PARAMS = new Set([
-  // UTM / campaign tracking
-  "utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content",
-  "utm_id", "utm_reader", "utm_name", "utm_brand", "utm_social", "utm_social-type",
-  // Platform click IDs
-  "fbclid", "gclid", "msclkid", "twclid", "ttclid", "li_fat_id", "igshid",
-  "s_kwcid", "dclid", "wbraid", "gbraid",
-  // Email marketing
-  "mc_cid", "mc_eid", "oly_enc_id", "oly_anon_id", "vero_id", "vero_conv",
-  "mkt_tok", "hmb_campaign", "hmb_source", "hmb_medium",
-  // Paywall / checkout triggers
-  "embedded-checkout", "unlocked", "gift", "giftcopy", "paywall",
-  "access", "preview", "allow_access", "free_access", "member_access",
-  // Publisher referral
-  "referer", "referrer", "origin", "via",
-  "partner", "affiliate",
-  // Analytics / session
-  "_ga", "_gl", "_hsenc", "_hsmi", "icid", "ncid", "cid", "sid",
-  "sessionid", "visitorid",
-  // A/B testing
-  "variation", "variant", "experiment", "ab", "test",
-  // Social sharing
-  "share", "shared", "sharetype", "shared_from", "smid", "smtyp", "sr_share",
-  // CMS / internal
-  "mod", "render", "template", "layout",
+/** URL identity contract v2; compatible with agentsweb's url-identity.ts. */
+const TRACKING_PARAMS = new Set([
+  "fbclid", "gclid", "dclid", "msclkid", "twclid", "ttclid", "li_fat_id", "igshid",
+  "mc_cid", "mc_eid", "mkt_tok", "_ga", "_gl", "_hsenc", "_hsmi", "wbraid", "gbraid",
 ]);
 
 export function normalizeUrl(input: string): string {
-  let raw = input;
-  if (!raw.startsWith("http://") && !raw.startsWith("https://")) {
-    raw = "https://" + raw;
-  }
-
-  raw = raw.replace(/^http:\/\//, "https://");
-
-  const url = new URL(raw);
-
-  url.hash = "";
-
-  const keysToDelete: string[] = [];
-  url.searchParams.forEach((_, key) => {
-    if (STRIP_PARAMS.has(key.toLowerCase())) {
-      keysToDelete.push(key);
+  const raw = input.trim();
+  const url = new URL(/^[a-z][a-z\d+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+  if (!/^#!?\//.test(url.hash)) url.hash = "";
+  const signed = [...url.searchParams.keys()].some((key) => /^(x-amz-|x-goog-|signature$|sig$|token$)/i.test(key));
+  if (!signed) {
+    for (const key of [...url.searchParams.keys()]) {
+      if (/^utm_/i.test(key) || TRACKING_PARAMS.has(key.toLowerCase())) url.searchParams.delete(key);
     }
-  });
-  keysToDelete.forEach((key) => url.searchParams.delete(key));
-
-  if (url.searchParams.get("amp") === "1") {
-    url.searchParams.delete("amp");
   }
-
-  url.pathname = url.pathname.replace(/^\/amp\//, "/");
-
-  if (url.pathname.length > 1 && url.pathname.endsWith("/")) {
-    url.pathname = url.pathname.slice(0, -1);
-  }
-
+  // Scheme, www, path case, trailing slash, ref, variant and access can change content.
   return url.toString();
 }

@@ -6,7 +6,7 @@ describe("waybackFetcher", () => {
 
   it("has correct name and tier", () => {
     expect(waybackFetcher.name).toBe("wayback");
-    expect(waybackFetcher.tier).toBe(2);
+    expect(waybackFetcher.tier).toBe(4);
   });
 
   it("queries availability API then fetches snapshot", async () => {

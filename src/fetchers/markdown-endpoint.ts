@@ -62,7 +62,7 @@ async function tryFetch(target: string, headers: Record<string, string>): Promis
 
 export const markdownEndpointFetcher: Fetcher = {
   name: "markdown-endpoint",
-  tier: 3,
+  tier: 1,
   async fetch(url: string): Promise<FetchResult | null> {
     const start = Date.now();
 

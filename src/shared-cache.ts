@@ -1,9 +1,11 @@
 import { fetchWithTimeout } from "./fetch-with-timeout.js";
 import type { FetchResult } from "./types.js";
-import { randomBytes } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { scoreContent } from "./quality.js";
+import { normalizeUrl } from "./normalize.js";
 
 const CACHE_URL = "https://agentsweb.org";
 const TIMEOUT = 2_500;
@@ -44,6 +46,13 @@ interface SharedCacheResponse {
   trust_level: number;
   source: string;
   age_seconds: number;
+  truncated?: boolean;
+  completeness?: string;
+  source_kind?: string;
+  retrieved_at?: string;
+  verified_at?: string | null;
+  content_hash?: string;
+  archived_at?: string;
 }
 
 function isIndirectCacheSource(source: string): boolean {
@@ -54,11 +63,11 @@ function isIndirectCacheSource(source: string): boolean {
  * Read from the shared agentsweb.org cache.
  * Returns a FetchResult if cache hit, null if miss.
  */
-export async function sharedCacheRead(url: string): Promise<FetchResult | null> {
+export async function sharedCacheRead(url: string, options: { maxAgeSeconds?: number; allowArchive?: boolean } = {}): Promise<FetchResult | null> {
   const start = Date.now();
   try {
     const response = await fetchWithTimeout(
-      `${CACHE_URL}/?url=${encodeURIComponent(url)}`,
+      `${CACHE_URL}/?url=${encodeURIComponent(url)}&clean=false&max_age=${options.maxAgeSeconds ?? 3600}`,
       {},
       TIMEOUT
     );
@@ -66,15 +75,32 @@ export async function sharedCacheRead(url: string): Promise<FetchResult | null> 
     if (!response.ok) return null;
 
     const data = (await response.json()) as SharedCacheResponse;
-    if (!data.markdown || data.markdown.length < 500) return null;
+    if (typeof data.markdown !== "string" || data.markdown.length < 200 || data.markdown.length > 5_000_000) return null;
+    if (typeof data.source !== "string" || typeof data.url !== "string" || normalizeUrl(data.url) !== normalizeUrl(url)) return null;
+    if (data.truncated || (data.completeness && data.completeness !== "complete")) return null;
+    const actualHash = createHash('sha256').update(data.markdown).digest('hex');
+    if (data.content_hash && data.content_hash !== actualHash) return null;
+    if (data.retrieved_at && (!Number.isFinite(Date.parse(data.retrieved_at)) || Date.parse(data.retrieved_at) > Date.now()+60_000)) return null;
+    if (typeof data.age_seconds !== "number" || !Number.isFinite(data.age_seconds) || data.age_seconds < 0 || data.age_seconds > (options.maxAgeSeconds ?? 3600)) return null;
+    const archive = data.source_kind === "archive" || /wayback|arquivo|archive-ph|common-crawl/.test(data.source);
+    if (archive && options.allowArchive === false) return null;
     if (isIndirectCacheSource(data.source)) return null;
+    const quality = scoreContent(data.markdown);
+    if (quality < 0.3) return null;
 
     return {
       content: data.markdown,
       source: `agentsweb (trust:${data.trust_level}, via:${data.source})`,
-      quality: Math.min(1, 0.5 + data.trust_level * 0.1), // trust 1 = 0.6, trust 5 = 1.0
+      quality,
       timing: Date.now() - start,
       ageSeconds: typeof data.age_seconds === "number" ? data.age_seconds : undefined,
+      completeness: "complete",
+      sourceKind: archive ? "archive" : "live",
+      retrievedAt: data.retrieved_at ?? new Date(Date.now() - data.age_seconds * 1000).toISOString(),
+      verifiedAt: typeof data.verified_at === "string" ? data.verified_at : undefined,
+      canonicalUrl: data.url,
+      contentHash: actualHash,
+      archivedAt: data.archived_at,
     };
   } catch {
     return null;
@@ -101,7 +127,7 @@ export function sharedCacheWrite(url: string, markdown: string, source: string):
       body,
     },
     TIMEOUT
-  ).catch(() => {}); // swallow errors — best effort
+  ).then(response => response.body?.cancel()).catch(() => {}); // best effort
 }
 
 /**
@@ -127,6 +153,6 @@ export async function sharedCacheConfirm(url: string, markdown: string): Promise
         }),
       },
       TIMEOUT
-    ).catch(() => {});
+    ).then(response => response.body?.cancel()).catch(() => {});
   } catch {}
 }

@@ -1,6 +1,8 @@
 import type { Fetcher, FetchResult, PipelineResult, PipelineOptions, AttemptRecord } from "./types.js";
 import { detectBlock, buildDiagnosis, type BlockReason } from "./classify.js";
 
+import { throwIfCancelled, withRequestDeadline } from "./request-context.js";
+
 const DEFAULT_QUALITY_THRESHOLD = 0.3;
 const PARALLEL_TIER = 2;
 
@@ -9,17 +11,33 @@ export async function runPipeline(
   fetchers: Fetcher[],
   options: PipelineOptions = {}
 ): Promise<PipelineResult> {
-  const { maxTier = 5, qualityThreshold = DEFAULT_QUALITY_THRESHOLD } = options;
+  const { maxTier = 5, qualityThreshold = DEFAULT_QUALITY_THRESHOLD, allowArchive = true, health } = options;
   // Tiers must run in ascending order, and the parallel-tier grouping below
   // only batches *consecutive* entries — a stable sort guarantees both
   // regardless of how callers ordered the array.
-  const orderedFetchers = [...fetchers].sort((a, b) => a.tier - b.tier);
+  const orderedFetchers = fetchers.filter((f) => allowArchive || !/^(wayback|arquivo|archive-ph|common-crawl)$/.test(f.name)).sort((a, b) => a.tier - b.tier);
+  const invoke = async (f: Fetcher): Promise<FetchResult | null> => {
+    throwIfCancelled();
+    const healthKey = /^(raw|markdown-endpoint|stealth)$/.test(f.name) ? `${f.name}:${new URL(url).host}` : f.name;
+    if (health && !health.available(healthKey)) return null;
+    try {
+      const result = await f.fetch(url);
+      throwIfCancelled();
+      health?.record(healthKey, !!result && result.quality >= qualityThreshold);
+      return result;
+    } catch (error) {
+      throwIfCancelled();
+      health?.record(healthKey, false);
+      throw error;
+    }
+  };
   const attempts: AttemptRecord[] = [];
   let bestFallback: FetchResult | null = null;
   const blockReasons = new Set<BlockReason>();
 
   let i = 0;
   while (i < orderedFetchers.length) {
+    throwIfCancelled();
     const fetcher = orderedFetchers[i];
 
     if (fetcher.tier > maxTier) {
@@ -35,9 +53,21 @@ export async function runPipeline(
         i++;
       }
 
-      const results = await Promise.allSettled(
-        tierFetchers.map((f) => f.fetch(url))
-      );
+      // Allow a short quality-comparison window, then stop waiting for a slow
+      // hosted provider once another has returned usable content.
+      const group = new AbortController();
+      const results = await new Promise<PromiseSettledResult<FetchResult | null>[]>((resolve) => {
+        const settled: PromiseSettledResult<FetchResult | null>[] = tierFetchers.map(() => ({status:"rejected",reason:new Error("cancelled after another provider succeeded")}));
+        let pending=tierFetchers.length, done=false;
+        let grace: ReturnType<typeof setTimeout> | undefined;
+        const finish=()=>{if(done)return;done=true;if(grace)clearTimeout(grace);resolve([...settled]);group.abort();};
+        tierFetchers.forEach((f,index)=>{
+          withRequestDeadline(25_000,group.signal,()=>invoke(f)).then(value=>{
+            settled[index]={status:"fulfilled",value};
+            if(value && value.quality>=qualityThreshold && !grace)grace=setTimeout(finish,200);
+          },reason=>{settled[index]={status:"rejected",reason};}).finally(()=>{if(--pending===0)finish();});
+        });
+      });
 
       let bestResult: FetchResult | null = null;
       let bestFetcher: Fetcher | null = null;
@@ -72,6 +102,7 @@ export async function runPipeline(
         }
       }
 
+      throwIfCancelled();
       if (bestResult && bestFetcher) {
         for (let j = 0; j < results.length; j++) {
           const f = tierFetchers[j];
@@ -90,7 +121,7 @@ export async function runPipeline(
 
     // Sequential execution for all other tiers
     try {
-      const result = await fetcher.fetch(url);
+      const result = await invoke(fetcher);
 
       if (!result) {
         attempts.push({ name: fetcher.name, status: "failed", reason: "returned null" });
@@ -115,10 +146,11 @@ export async function runPipeline(
     i++;
   }
 
+  throwIfCancelled();
   const diagnosis = buildDiagnosis(blockReasons);
 
-  if (bestFallback) {
-    return { result: bestFallback, attempts, diagnosis };
+  if (bestFallback && bestFallback.quality >= 0.1) {
+    return { result: { ...bestFallback, completeness: "partial" }, attempts, diagnosis };
   }
 
   return {
@@ -139,6 +171,7 @@ export function formatResult(pipelineResult: PipelineResult): string {
     .join(" → ");
 
   let out = `${result.content}\n\n---\nsource: ${result.source} | ${formatTiming(result.timing)} | ${tried}`;
+  if (result.completeness) out += `\ncontent: ${result.completeness} | kind: ${result.sourceKind ?? "live"}${result.retrievedAt ? ` | retrieved: ${result.retrievedAt}` : ""}`;
   if (diagnosis) out += `\n\n⚠️ ${diagnosis}`;
   return out;
 }

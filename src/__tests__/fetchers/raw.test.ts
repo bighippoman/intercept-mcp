@@ -6,7 +6,7 @@ describe("rawFetcher", () => {
 
   it("has correct name and tier", () => {
     expect(rawFetcher.name).toBe("raw");
-    expect(rawFetcher.tier).toBe(3);
+    expect(rawFetcher.tier).toBe(1);
   });
 
   it("fetches with browser-like headers", async () => {
@@ -14,10 +14,10 @@ describe("rawFetcher", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(html, { status: 200 }));
     const result = await rawFetcher.fetch("https://example.com/article");
     const callArgs = vi.mocked(globalThis.fetch).mock.calls[0];
-    const headers = callArgs[1]?.headers as Record<string, string>;
-    expect(headers["User-Agent"]).toBeDefined();
-    expect(headers["Accept-Language"]).toBeDefined();
-    expect(headers["Sec-Fetch-Dest"]).toBe("document");
+    const headers = new Headers(callArgs[1]?.headers);
+    expect(headers.get("User-Agent")).toBeDefined();
+    expect(headers.get("Accept-Language")).toBeDefined();
+    expect(headers.get("Sec-Fetch-Dest")).toBe("document");
     expect(result).not.toBeNull();
     expect(result!.source).toBe("raw");
   });

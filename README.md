@@ -90,9 +90,9 @@ The GitHub API endpoints work unauthenticated (60 requests/hour). Set `GITHUB_TO
 
 ### 2. Shared cache (agentsweb.org)
 
-Before hitting any fetcher, every request checks [agentsweb.org](https://agentsweb.org) — a global shared markdown cache for AI agents backed by a 9-source parallel fetch pipeline with JS/SPA rendering (React, Vue, Angular via Cloudflare Browser Run). If another agent already fetched this URL, you get the result in under 50ms.
+After specialized handlers, public requests check [agentsweb.org](https://agentsweb.org) for a complete result within the requested freshness window. Partial, stale, mismatched, and blocked responses are rejected. Cache latency depends on the network and storage location.
 
-Every successful fetch contributes back automatically. Entries gain trust through a self-healing consensus model: when independent instances fetch the same URL and confirm the same content, confidence increases.
+Complete public live retrievals can contribute refresh hints. agentsweb verifies a page through its own retrieval pipeline before publishing it. Confirmations do not reset retrieval time. Authenticated, signed, and GitHub-token requests never use the public cache.
 
 Opt out entirely with `INTERCEPT_SHARED_CACHE=false`, or use read-only mode (consume but never contribute) with `INTERCEPT_CACHE_READ_ONLY=true`.
 
@@ -110,31 +110,20 @@ See [agentsweb.org/docs](https://agentsweb.org/docs) for full API documentation.
 
 If no handler matches (or the handler returns nothing), the URL enters the multi-tier pipeline:
 
-| Tier | Fetcher | Strategy |
-|------|---------|----------|
-| 0 | agentsweb.org | Global shared markdown cache — instant if another agent already fetched this URL |
-| 1 | Cloudflare Browser Run | JS/SPA rendering + markdown extraction — also powers [agentsweb.org](https://agentsweb.org) (optional, needs API token) |
-| 1 | Jina Reader | Clean markdown extraction service |
-| 2 | Wayback Machine | Archived version from archive.org |
-| 2 | Arquivo.pt | Portuguese web archive (broad international coverage) |
-| 2 | Common Crawl | Petabyte web archive read from Common Crawl's index + S3 — not subject to the origin's rate limits, bot detection, or paywall |
-| 2 | Codetabs | CORS proxy |
-| 3 | Markdown endpoint | Asks the site for a native markdown version (`<path>.md` + `Accept: text/markdown`) |
-| 3 | archive.ph | Archived snapshots via timemap API + stealth TLS fetch |
-| 3 | Raw fetch | Direct GET with browser headers + Turndown markdown conversion |
-| 3 | Stealth fetch | Browser TLS fingerprint impersonation via got-scraping (opt-in, see below) |
-| 3 | FlareSolverr | Real-browser challenge solver for Cloudflare/DDoS-Guard (opt-in, needs a FlareSolverr instance) |
-| 3 | Web unlocker | Commercial unlocker API — residential rotation + rendering + CAPTCHA (opt-in, BYO key, paid per request) |
-| 4 | RSS, CrossRef, Semantic Scholar, HN, Reddit | Metadata / discussion fallbacks |
-| 5 | OG Meta | Open Graph tags (guaranteed fallback) |
+| Tier | Fetchers | Behavior |
+|------|----------|----------|
+| 0 | agentsweb | Fresh, complete shared content |
+| 1 | Native Markdown, direct HTML | Contact the origin first |
+| 2 | Cloudflare Browser Run, Jina | Hosted extraction; parallel with a short quality comparison window |
+| 3 | Stealth, Codetabs, FlareSolverr, configured unlocker | Additional live retrieval paths |
+| 4 | Wayback, Arquivo, Common Crawl, archive.ph; RSS and scholarly/discussion sources | Labeled historical or partial fallbacks |
+| 5 | Open Graph metadata | Metadata only; insufficient stubs are failures |
 
-Tier 2 fetchers run in parallel. When multiple succeed, the highest quality result wins. All other tiers run sequentially.
-
-All fetchers return proper **Markdown** (headings, links, bold, tables, code blocks) via Turndown — not plain text.
+A successful hosted result stops a slower provider after a 200 ms comparison window. Repeated provider failures trigger a short cooldown. Direct-host health is tracked per host. Historical snapshots never outrun live sources; `noCache` disables archives unless `allowArchive` is explicitly true.
 
 ### 4. Caching
 
-Results are cached in-memory with TTL (60 min for successes, 5 min for failures). Max 250 entries with LRU eviction. Failed URLs are cached to prevent re-attempting known-dead URLs. All three knobs are configurable via `INTERCEPT_CACHE_TTL_MS`, `INTERCEPT_CACHE_FAILURE_TTL_MS`, and `INTERCEPT_CACHE_SIZE`.
+Results are cached in-memory with TTL (60 min for successes, 5 min for failures). Max 250 entries with LRU eviction. Failures are cached by retrieval policy, so a shallow failed attempt does not prevent a later broader retry. Duplicate in-flight requests share work while retaining independent cancellation. All three knobs are configurable via `INTERCEPT_CACHE_TTL_MS`, `INTERCEPT_CACHE_FAILURE_TTL_MS`, and `INTERCEPT_CACHE_SIZE`.
 
 ## Tools
 
@@ -147,8 +136,11 @@ Fetch a URL and return its content as clean markdown.
 - `maxLength` (number, optional, default 50000) — Maximum characters to return
 - `startIndex` (number, optional, default 0) — Character offset for paginating long content
 - `noCache` (boolean, optional) — Skip session and shared caches and fetch live
+- `timeoutMs` — Overall deadline, including downloads (default 25000; research 35000)
+- `maxAgeSeconds` — Maximum cache age (default 3600; 0 forces retrieval)
+- `allowArchive` — Permit labeled historical fallbacks (disabled by `noCache` unless explicitly enabled)
 
-Long pages are truncated at `maxLength` with a notice telling the agent which `startIndex` continues the content. Structured output reports `source`, `quality`, `contentLength`, `truncated`, `nextStartIndex`, and `cacheAgeSeconds` so agents can branch on them programmatically.
+Long pages are truncated at `maxLength` with a notice telling the agent which `startIndex` continues the content. Structured output reports `source`, `quality`, `contentLength`, `truncated`, `nextStartIndex`, and `cacheAgeSeconds` so agents can branch on them programmatically. It also reports completeness, sourceKind, retrievedAt, verifiedAt when available, canonicalUrl, contentHash, and title. Research includes verbatim relevant passages with offsets and citation URLs; set passagesOnly to return those excerpts instead of full documents.
 
 Direct image URLs (`.png`, `.jpg`, `.gif`, `.webp`, up to 5 MB) are returned as an MCP **image block** instead of text, so the agent's own vision model can read charts, diagrams, screenshots, and scanned documents. The structured output reports `source: "image"`, `mimeType`, and `bytes`.
 
@@ -321,7 +313,7 @@ To get a cookie: open the site logged-in, open DevTools → Network, copy the `C
 
 ### Security model — read this before using it
 
-- **Credentials only ever go to the configured origin.** Headers are keyed on the *actual host being contacted*. When intercept fetches a page through Jina, a web archive, a CORS proxy, FlareSolverr, or the shared cache, those intermediaries connect to a *different* host, so your cookie/token is **never** sent to them — only a direct fetch of the origin carries it.
+- **Credentials only ever go to the configured origin.** Headers are keyed on the *actual host being contacted*. Requests matching per-domain authentication use direct origin retrieval only. Redirects are revalidated and custom credentials are stripped across origins.
 - **Authenticated responses never touch the shared cache.** When a request matches an `INTERCEPT_AUTH` entry, intercept does not read from or write to the public [agentsweb.org](https://agentsweb.org) cache for that URL — so your private/paid content is never published, and you always get *your* authenticated view rather than a stranger's anonymous copy. (The in-process session cache still applies.)
 - **Treat the value as a secret.** It contains live session tokens. Environment variables are visible to the process and its children and may be captured in shell history or process listings — prefer a secrets manager or a non-committed env file, and never commit it. Cookies expire, so you'll periodically need to refresh them.
 - **You are responsible for authorized use.** Only supply credentials for accounts you own or are permitted to use, and respect each site's terms of service. intercept simply forwards the headers you provide.
@@ -364,5 +356,11 @@ Each fetcher result is scored for quality. Automatic fail on:
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 22.18.0
 - No API keys required for basic use
+
+## Validate and release
+
+`npm run check` runs deterministic regression tests and builds the package. `npm run test:live` is the optional network smoke suite; provider availability can vary. `npm pack` produces a reviewable release tarball. `npm publish` runs the deterministic checks again. CI tests Node.js 22 and 24.
+
+Version 6 preserves functional URL variants and changes fallback ordering to live-first. Consumers should use completeness and sourceKind, rather than assuming every successful result is a complete live document. Source content is untrusted data; extraction quality is not an instruction-safety guarantee.
